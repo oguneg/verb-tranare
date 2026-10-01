@@ -96,34 +96,82 @@
   }
   window.addEventListener("hashchange", route);
 
-  /* ---------- home ---------- */
+  /* ---------- my progress (guided home) ---------- */
+  const learnedVerbs = () => VERBS.filter(v => state.learned[v.i]);
+  const verbCards = () => allCards().filter(isVerbCard);
+
+  // Decides what the learner should do next: practice fresh verbs, review due cards, or learn more.
+  function nextStep() {
+    const cards = verbCards().filter(c => state.learned[c.item.i]);
+    const fresh = cards.filter(isNew), due = cards.filter(isDue);
+    if (fresh.length) return { type: "practice", fresh: fresh.length / 2, cards: fresh.length };
+    if (due.length) return { type: "review", cards: due.length };
+    const batch = nextBatch();
+    if (batch.length) return { type: "learn", batch };
+    return { type: "done" };
+  }
+  function guidedQueue() {
+    const cards = verbCards().filter(c => state.learned[c.item.i]);
+    return shuffle(cards.filter(isDue)).concat(shuffle(cards.filter(isNew))).slice(0, SESSION_MAX);
+  }
+  function startLearning() {
+    learn.batch = nextBatch(); learn.idx = 0;
+    if (!learn.batch.length) { learn.batch = null; return home(); }
+    if (location.hash === "#/learn") route(); else location.hash = "#/learn";
+  }
+  function startGuidedPractice() { startSession(guidedQueue(), "#/home", true); }
+  function goto(hash) { if (location.hash === hash) route(); else location.hash = hash; }
+
   function home() {
-    const learnedN = VERBS.filter(v => state.learned[v.i]).length;
-    const cards = allCards();
-    const due = cards.filter(isDue).length;
-    const seen = cards.filter(c => !isNew(c)).length;
+    const learnedN = learnedVerbs().length;
+    const cards = verbCards();
+    const dueN = cards.filter(c => state.learned[c.item.i] && isDue(c)).length;
+    const step = nextStep();
+    const phase = step.type === "learn" ? 1 : step.type === "done" ? 3 : 2;
+    const path = [["1", "Learn 5 verbs"], ["2", "Practice them"], ["↻", "Repeat & review"]]
+      .map(([n, t], k) => `<li class="${k + 1 < phase ? "done" : k + 1 === phase ? "cur" : ""}"><span>${k + 1 < phase ? "✓" : n}</span>${t}</li>`).join("");
+
+    let card;
+    if (step.type === "learn") card = `
+      <h2>${learnedN === 0 ? "Start here: learn your first 5 verbs" : "Next: learn 5 new verbs"}</h2>
+      <p class="muted">${learnedN === 0 ? "You'll see each verb in four sentences. Right after, you'll practice them with flashcards." : "Your reviews are up to date. Time to add five more verbs."}</p>
+      <ul class="batch-list">${step.batch.map(v => `<li><b>${esc(v.i)}</b><span class="muted">${esc(v.en)}</span></li>`).join("")}</ul>
+      <button class="primary big" data-act="learn-start">Start learning</button>`;
+    else if (step.type === "practice") card = `
+      <h2>Next: practice your new verbs</h2>
+      <p class="muted">${step.fresh} new verb${step.fresh === 1 ? "" : "s"} · ${step.cards} flashcards, English → Swedish and back.</p>
+      <button class="primary big" data-act="guided-start">Start practice</button>`;
+    else if (step.type === "review") card = `
+      <h2>Next: review ${step.cards} due card${step.cards === 1 ? "" : "s"}</h2>
+      <p class="muted">A short refresher keeps these verbs in long-term memory.</p>
+      <button class="primary big" data-act="guided-start">Start review</button>`;
+    else card = `
+      <h2>All caught up 🎉</h2>
+      <p class="muted">You've learned every verb and nothing is due. Check back later, or explore particle verbs.</p>
+      <a class="btn primary" href="#/particles">Particle verbs</a>`;
+
+    const skip = step.type !== "learn" && nextBatch().length
+      ? `<p class="small muted" style="margin:14px 0 0">Feeling ahead? <button class="linklike" data-act="learn-start">Learn 5 more verbs now</button></p>` : "";
+
+    const chips = ["all", ...tiers].map(t => `<button class="chip ${learn.tier === t ? "on" : ""}" data-act="learn-tier-home" data-v="${t}">${tierLabel(t)}</button>`).join("");
     const tierBars = tiers.map(t => {
       const all = VERBS.filter(v => v.tier === t), done = all.filter(v => state.learned[v.i]).length;
       return `<div><div class="row between"><span>${tierLabel(t)}</span><span class="muted small">${done} / ${all.length}</span></div>
         <div class="bar"><i style="width:${all.length ? done / all.length * 100 : 0}%"></i></div></div>`;
     }).join("");
+
     app.innerHTML = `
-      <section class="hero">
-        <h1>Hej! Let's learn Swedish verbs.</h1>
-        <p class="muted">Learn five verbs at a time with four example sentences each, then keep them fresh with spaced-repetition flashcards.</p>
-      </section>
+      <h1>My progress</h1>
+      <ol class="path">${path}</ol>
+      <div class="card-box next">${card}${skip}</div>
       <div class="stats">
         <div class="stat"><b>${learnedN}</b><span class="muted">of ${VERBS.length} verbs learned</span></div>
-        <div class="stat"><b>${due}</b><span class="muted">flashcards due now</span></div>
-        <div class="stat"><b>${seen}</b><span class="muted">cards in rotation</span></div>
+        <div class="stat"><b>${dueN}</b><span class="muted">cards due now</span></div>
+        <div class="stat"><b>${cards.filter(c => !isNew(c)).length}</b><span class="muted">cards in rotation</span></div>
       </div>
-      <div class="card-box"><h3>Progress by frequency</h3>${tierBars}</div>
-      <div class="cta">
-        <a href="#/learn"><strong>Learn new verbs</strong><span class="muted small">5 at a time, 4 sentences each</span></a>
-        <a href="#/practice"><strong>Practice flashcards</strong><span class="muted small">English ⇄ Swedish</span></a>
-        <a href="#/particles"><strong>Particle verbs</strong><span class="muted small">hålla med, ta bort, …</span></a>
-      </div>
-      <p class="muted small" style="margin-top:28px">Progress is saved in this browser. <button class="icon-btn" data-act="reset" style="font-size:.8rem">Reset progress</button></p>`;
+      <div class="card-box"><h3>Progress by frequency</h3>${tierBars}
+        <div class="opt-title" style="margin-top:4px">Learn from</div><div class="groups" style="margin-bottom:0">${chips}</div></div>
+      <p class="muted small" style="margin-top:28px">Want to drill freely? Use <a href="#/practice">Practice</a> or <a href="#/particles">Particle verbs</a>. Progress is saved in this browser. <button class="linklike" data-act="reset">Reset progress</button></p>`;
   }
 
   /* ---------- learn ---------- */
@@ -245,10 +293,10 @@
   }
 
   /* ---------- flashcard session ---------- */
-  function startSession() {
-    const queue = buildQueue(prac);
+  function startSession(queue, back, guided) {
+    queue = queue || buildQueue(prac);
     if (!queue.length) return;
-    session = { queue, i: 0, flipped: false, total: queue.length, again: 0, back: location.hash };
+    session = { queue, i: 0, flipped: false, total: queue.length, again: 0, back: back || location.hash, guided: !!guided };
     renderSession();
   }
 
@@ -311,15 +359,18 @@
   }
 
   function sessionDone() {
-    const s = session;
+    const s = session, step = s.guided ? nextStep() : null;
+    let cta;
+    if (!s.guided) cta = `<a class="btn primary" href="${s.back}" data-act="again-session">Another round</a><a class="btn" href="#/home">Home</a>`;
+    else if (step.type === "learn") cta = `<button class="primary big" data-act="learn-start">Next: learn 5 new verbs</button><a class="btn" href="#/home">My progress</a>`;
+    else if (step.type === "done") cta = `<a class="btn primary" href="#/home">My progress</a>`;
+    else cta = `<button class="primary big" data-act="guided-start">Keep going: ${step.type === "review" ? "review due cards" : "practice new verbs"}</button><a class="btn" href="#/home">My progress</a>`;
     app.innerHTML = `
       <div class="card-box" style="text-align:center">
         <h2>Session complete 🎉</h2>
         <p class="muted">${s.total} cards reviewed${s.again ? `, ${s.again} to repeat` : ""}.</p>
-        <div class="row" style="justify-content:center">
-          <a class="btn primary" href="${s.back}" data-act="again-session">Another round</a>
-          <a class="btn" href="#/home">Home</a>
-        </div>
+        ${s.guided && step.type === "learn" ? `<p>Nice work. Ready for the next five?</p>` : ""}
+        <div class="row" style="justify-content:center">${cta}</div>
       </div>`;
   }
 
@@ -360,18 +411,20 @@
         if (confirm("Delete all learned verbs and flashcard progress?")) { state = { learned: {}, cards: {} }; save(); home(); }
         return;
       case "learn-tier": learn.tier = v === "all" ? v : +v; return learnView();
-      case "learn-start": learn.batch = nextBatch(); learn.idx = 0; return learnView();
+      case "learn-start": return startLearning();
+      case "guided-start": return startGuidedPractice();
+      case "learn-tier-home": learn.tier = v === "all" ? v : +v; return home();
       case "learn-next": learn.idx++; return learnView();
       case "learn-prev": learn.idx--; return learnView();
       case "learn-finish":
         learn.batch.forEach(x => { state.learned[x.i] = Date.now(); });
-        save(); learn.batch = null; return learnView();
+        save(); learn.batch = null; return startGuidedPractice();
       case "prac-mode": prac.mode = v; return practiceSetup();
       case "prac-tier": prac.tier = v === "all" ? v : +v; return practiceSetup();
       case "part-tier": prac.tier = v === "all" ? v : +v; return particleSetup();
       case "part-group": prac.group = v; return particleSetup();
       case "prac-start": return startSession();
-      case "end": e.preventDefault(); return route();
+      case "end": e.preventDefault(); return goto(session ? session.back : "#/home");
       case "again-session": e.preventDefault(); return startSession();
       case "list-tier": vlist.tier = v === "all" ? v : +v; return verbsView();
     }

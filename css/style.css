@@ -177,3 +177,17 @@ details.v .body { padding: 0 1rem 1rem; }
 .tick { color: var(--good); font-weight: 700; }
 .empty { text-align: center; padding: 40px 10px; color: var(--muted); }
 .warn { color: var(--bad); }
+
+/* guided path */
+.path { list-style: none; display: flex; gap: 8px; padding: 0; margin: 0 0 16px; flex-wrap: wrap; }
+.path li { flex: 1; min-width: 130px; display: flex; align-items: center; gap: .5rem; padding: .5rem .75rem; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+.path li span { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center; background: var(--line); font-weight: 700; font-size: .8rem; }
+.path li.cur { color: var(--ink); border-color: var(--blue); font-weight: 600; }
+.path li.cur span { background: var(--blue); color: #fff; }
+.path li.done span { background: var(--good); color: #fff; }
+.next { border-color: var(--blue); }
+.next h2 { font-size: 1.4rem; }
+.primary.big { padding: .8rem 1.6rem; font-size: 1.05rem; }
+.linklike { background: none; border: 0; padding: 0; color: var(--blue); text-decoration: underline; cursor: pointer; font: inherit; }
+.stats { margin-top: 16px; }
+.stats + .card-box { margin-top: 0; }
