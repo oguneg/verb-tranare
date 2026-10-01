@@ -9,6 +9,10 @@
   const NEW_PER_SESSION = 10;
   const STORE = "verbtraning.v1";
   const TENSES = ["Infinitiv", "Presens", "Preteritum", "Supinum"];
+  const TCLS = ["t-inf", "t-pres", "t-pret", "t-sup"];
+  const SPK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z" fill="currentColor" stroke="none"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>`;
+  const CHK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+  const burst = () => `<div class="burst" aria-hidden="true">${["sage-deep", "butter-deep", "rose-deep", "sky-deep", "lilac-deep", "peach-deep"].flatMap((c, i) => [0, 1, 2].map(j => `<i style="--a:${(i * 3 + j) * 20}deg;--c:var(--${c});animation-delay:${j * 60}ms"></i>`)).join("")}</div>`;
 
   /* ---------- storage ---------- */
   let state = load();
@@ -68,17 +72,17 @@
   /* ---------- shared renderers ---------- */
   function formsHtml(v) {
     return `<div class="forms">
-      <div><span>Infinitiv</span><b>att ${esc(v.i)}</b></div>
-      <div><span>Presens</span><b>${esc(v.p)}</b></div>
-      <div><span>Preteritum</span><b>${esc(v.t)}</b></div>
-      <div><span>Supinum</span><b>har ${esc(v.s)}</b></div></div>`;
+      <div class="t-inf"><span>Infinitiv</span><b>att ${esc(v.i)}</b></div>
+      <div class="t-pres"><span>Presens</span><b>${esc(v.p)}</b></div>
+      <div class="t-pret"><span>Preteritum</span><b>${esc(v.t)}</b></div>
+      <div class="t-sup"><span>Supinum</span><b>har ${esc(v.s)}</b></div></div>`;
   }
   function sentencesHtml(v) {
     return v.ex.map(([sv, en], k) => `
-      <div class="tense">
+      <div class="tense ${TCLS[k]}">
         <div class="lab">${TENSES[k]}</div>
         <div class="sv">${hl(sv)}</div>
-        <button class="icon-btn" data-act="speak" data-text="${esc(sv)}" aria-label="Listen" title="Listen">🔊</button>
+        <button class="icon-btn" data-act="speak" data-text="${esc(sv)}" aria-label="Listen" title="Listen">${SPK}</button>
         <div class="en">${esc(en)}</div>
       </div>`).join("");
   }
@@ -91,9 +95,11 @@
   function route() {
     session = null;
     const name = (location.hash.replace(/^#\//, "").split("/")[0]) || "home";
-    document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("active", a.dataset.nav === name));
+    document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("active", a.dataset.nav === ({ learn: "home", pl: "particles" }[name] || name)));
+    app.classList.add("enter");
     (routes[name] || home)();
     window.scrollTo(0, 0);
+    clearTimeout(route.t); route.t = setTimeout(() => app.classList.remove("enter"), 900);
   }
   window.addEventListener("hashchange", route);
 
@@ -125,22 +131,22 @@
 
   function particleCard() {
     const done = PARTS.filter(pLearned).length, nb = nextParticleBatch();
-    return `<div class="card-box" style="margin-top:16px">
-      <div class="row between"><h3>Particle verbs</h3><span class="muted small">${done} / ${PARTS.length} learned</span></div>
-      <div class="bar"><i style="width:${done / PARTS.length * 100}%"></i></div>
-      ${nb ? `<p class="muted">Next group: <b>${esc(stemsLabel(nb))}</b> · ${nb.map(p => esc(p.pv)).join(", ")}</p>
+    return `<div class="card-box tint-sky">
+      <div class="row between"><h3>Particle verbs</h3><span class="small">${done} / ${PARTS.length} learned</span></div>
+      <div class="bar part"><i style="width:${done / PARTS.length * 100}%"></i></div>
+      ${nb ? `<p>Next group: <b>${esc(stemsLabel(nb))}</b> · ${nb.map(p => esc(p.pv)).join(", ")}</p>
         <div class="row"><button class="primary" data-act="pl-start">Learn this group</button><a class="btn" href="#/particles">Practice</a></div>`
-        : `<p class="muted">All particle verbs learned. Keep them fresh in <a href="#/particles">Practice</a>.</p>`}
+        : `<p>All particle verbs learned. Keep them fresh in <a href="#/particles">Practice</a>.</p>`}
     </div>`;
   }
 
   function irregularCard() {
     const irr = VERBS.filter(v => v.irr), learned = irr.filter(v => state.learned[v.i]).length;
     const ready = allCards().filter(c => c.type === "C" && state.learned[c.item.i] && (isNew(c) || isDue(c))).length;
-    return `<div class="card-box" style="margin-top:16px">
-      <div class="row between"><h3>Irregular verbs</h3><span class="muted small">${learned} / ${irr.length} learned</span></div>
-      <div class="bar"><i style="width:${irr.length ? learned / irr.length * 100 : 0}%"></i></div>
-      <p class="muted">${learned === 0 ? "Irregular verbs are mixed into your normal lessons. Once you've learned some, drill their conjugations here." : ready ? `<b>${ready}</b> conjugation card${ready === 1 ? "" : "s"} ready to practice.` : "Nothing due right now. Nice!"}</p>
+    return `<div class="card-box tint-lilac">
+      <div class="row between"><h3>Irregular verbs</h3><span class="small">${learned} / ${irr.length} learned</span></div>
+      <div class="bar irr"><i style="width:${irr.length ? learned / irr.length * 100 : 0}%"></i></div>
+      <p>${learned === 0 ? "Irregular verbs are mixed into your normal lessons. Once you've learned some, drill their conjugations here." : ready ? `<b>${ready}</b> conjugation card${ready === 1 ? "" : "s"} ready to practice.` : "Nothing due right now. Nice!"}</p>
       <button class="primary" data-act="irr-start" ${learned === 0 ? "disabled" : ""}>Practice conjugations</button>
     </div>`;
   }
@@ -151,51 +157,53 @@
     const dueN = cards.filter(c => state.learned[c.item.i] && isDue(c)).length;
     const step = nextStep();
     const phase = step.type === "learn" ? 1 : step.type === "done" ? 3 : 2;
-    const path = [["1", "Learn 5 verbs"], ["2", "Practice them"], ["↻", "Repeat & review"]]
-      .map(([n, t], k) => `<li class="${k + 1 < phase ? "done" : k + 1 === phase ? "cur" : ""}"><span>${k + 1 < phase ? "✓" : n}</span>${t}</li>`).join("");
+    const path = [["1", "Learn 5 verbs"], ["2", "Practice them"], ["3", "Repeat & review"]]
+      .map(([n, t], k) => `<li class="${k + 1 < phase ? "done" : k + 1 === phase ? "cur" : ""}"><span>${k + 1 < phase ? CHK : n}</span>${t}</li>`).join("");
 
-    let card;
-    if (step.type === "learn") card = `
+    let card, cls;
+    if (step.type === "learn") { cls = ""; card = `
       <h2>${learnedN === 0 ? "Start here: learn your first 5 verbs" : "Next: learn 5 new verbs"}</h2>
       <p class="muted">${learnedN === 0 ? "You'll see each verb in four sentences. Right after, you'll practice them with flashcards." : "Your reviews are up to date. Time to add five more verbs."}</p>
-      <ul class="batch-list">${step.batch.map(v => `<li><b>${esc(v.i)}</b><span class="muted">${esc(v.en)}</span></li>`).join("")}</ul>
-      <button class="primary big" data-act="learn-start">Start learning</button>`;
-    else if (step.type === "practice") card = `
+      <ul class="batch-list">${step.batch.map(v => `<li><b>${esc(v.i)}</b><span>${esc(v.en)}</span></li>`).join("")}</ul>
+      <button class="primary big" data-act="learn-start">Start learning</button>`; }
+    else if (step.type === "practice") { cls = "is-practice"; card = `
       <h2>Next: practice your new verbs</h2>
       <p class="muted">${step.fresh} new verb${step.fresh === 1 ? "" : "s"} · ${step.cards} flashcards, English → Swedish and back.</p>
-      <button class="primary big" data-act="guided-start">Start practice</button>`;
-    else if (step.type === "review") card = `
+      <button class="primary big" data-act="guided-start">Start practice</button>`; }
+    else if (step.type === "review") { cls = "is-review"; card = `
       <h2>Next: review ${step.cards} due card${step.cards === 1 ? "" : "s"}</h2>
       <p class="muted">A short refresher keeps these verbs in long-term memory.</p>
-      <button class="primary big" data-act="guided-start">Start review</button>`;
-    else card = `
-      <h2>All caught up 🎉</h2>
+      <button class="primary big" data-act="guided-start">Start review</button>`; }
+    else { cls = "is-done"; card = `
+      <h2>All caught up</h2>
       <p class="muted">You've learned every verb and nothing is due. Check back later, or explore particle verbs.</p>
-      <a class="btn primary" href="#/particles">Particle verbs</a>`;
+      <a class="btn primary" href="#/particles">Particle verbs</a>`; }
 
     const skip = step.type !== "learn" && nextBatch().length
-      ? `<p class="small muted" style="margin:14px 0 0">Feeling ahead? <button class="linklike" data-act="learn-start">Learn 5 more verbs now</button></p>` : "";
+      ? `<p class="small" style="margin:16px 0 0;text-align:center">Feeling ahead? <button class="linklike" data-act="learn-start">Learn 5 more verbs now</button></p>` : "";
 
     const chips = ["all", ...tiers].map(t => `<button class="chip ${learn.tier === t ? "on" : ""}" data-act="learn-tier-home" data-v="${t}">${tierLabel(t)}</button>`).join("");
     const tierBars = tiers.map(t => {
       const all = VERBS.filter(v => v.tier === t), done = all.filter(v => state.learned[v.i]).length;
       return `<div><div class="row between"><span>${tierLabel(t)}</span><span class="muted small">${done} / ${all.length}</span></div>
-        <div class="bar"><i style="width:${all.length ? done / all.length * 100 : 0}%"></i></div></div>`;
+        <div class="bar t${t}"><i style="width:${all.length ? done / all.length * 100 : 0}%"></i></div></div>`;
     }).join("");
 
     app.innerHTML = `
-      <h1>My progress</h1>
+      <div class="hello"><h1>Hej!</h1><p class="muted">${learnedN === 0 ? "Welcome. Here is your very first step." : "Good to see you again. Here is where you are and what comes next."}</p></div>
       <ol class="path">${path}</ol>
-      <div class="card-box next">${card}${skip}</div>
-      ${particleCard()}
-      ${irregularCard()}
-      <div class="stats">
-        <div class="stat"><b>${learnedN}</b><span class="muted">of ${VERBS.length} verbs learned</span></div>
-        <div class="stat"><b>${dueN}</b><span class="muted">cards due now</span></div>
-        <div class="stat"><b>${cards.filter(c => !isNew(c)).length}</b><span class="muted">cards in rotation</span></div>
+      <div class="card-box next ${cls}">${card}${skip}</div>
+      <div class="pills">
+        <div class="pill-stat"><b>${learnedN}</b> of ${VERBS.length} verbs learned</div>
+        <div class="pill-stat"><b>${dueN}</b> cards due now</div>
+        <div class="pill-stat"><b>${cards.filter(c => !isNew(c)).length}</b> cards in rotation</div>
       </div>
-      <div class="card-box"><h3>Progress by frequency</h3>${tierBars}
-        <div class="opt-title" style="margin-top:4px">Learn from</div><div class="groups" style="margin-bottom:0">${chips}</div></div>
+      <div class="street">
+        ${particleCard()}
+        ${irregularCard()}
+        <div class="card-box"><h3>Progress by frequency</h3>${tierBars}
+          <div class="opt-title" style="margin-top:4px">Learn from</div><div class="groups" style="margin-bottom:0">${chips}</div></div>
+      </div>
       <p class="muted small" style="margin-top:28px">Want to drill freely? Use <a href="#/practice">Practice</a> or <a href="#/particles">Particle verbs</a>. Progress is saved in this browser. <button class="linklike" data-act="reset">Reset progress</button></p>`;
   }
 
@@ -222,7 +230,7 @@
           <ul class="batch-list">${batch.map(v => `<li><b>${esc(v.i)}</b><span class="muted">${esc(v.en)}</span></li>`).join("")}</ul>
           <button class="primary" data-act="learn-start">Start</button>
         </div>`
-        : `<div class="empty">🎉 You've learned every verb in this group. Try another group or practice flashcards.</div>`}`;
+        : `<div class="empty">You've learned every verb in this group. Try another group or practice flashcards.</div>`}`;
   }
 
   function learnCard() {
@@ -309,14 +317,14 @@
           <div><span class="badge">particle: ${esc(p.g)}</span></div>
         </div>
         <div class="forms" style="grid-template-columns:repeat(3,1fr)">
-          <div><span>Presens</span><b>${esc(p.forms[0])}</b></div>
-          <div><span>Preteritum</span><b>${esc(p.forms[1])}</b></div>
-          <div><span>Supinum</span><b>har ${esc(p.forms[2])}</b></div>
+          <div class="t-pres"><span>Presens</span><b>${esc(p.forms[0])}</b></div>
+          <div class="t-pret"><span>Preteritum</span><b>${esc(p.forms[1])}</b></div>
+          <div class="t-sup"><span>Supinum</span><b>har ${esc(p.forms[2])}</b></div>
         </div>
-        <div class="tense">
+        <div class="tense t-inf">
           <div class="lab">Example</div>
           <div class="sv">${esc(p.sv)}</div>
-          <button class="icon-btn" data-act="speak" data-text="${esc(p.sv)}" aria-label="Listen">🔊</button>
+          <button class="icon-btn" data-act="speak" data-text="${esc(p.sv)}" aria-label="Listen">${SPK}</button>
           <div class="en">${esc(p.sven)}</div>
         </div>
         <div class="groups" style="margin:14px 0 0">${family}</div>
@@ -340,7 +348,7 @@
       <div class="card-box">
         <p class="muted small">Which particle verb says this in Swedish?</p>
         <div class="big-q">${esc(p.sven)}</div>
-        ${pl.solved ? `<div class="reveal"><div style="font-size:1.1rem">${esc(p.sv)} <button class="icon-btn" data-act="speak" data-text="${esc(p.sv)}" aria-label="Listen">🔊</button></div></div>` : ""}
+        ${pl.solved ? `<div class="reveal"><div style="font-size:1.1rem">${esc(p.sv)} <button class="icon-btn" data-act="speak" data-text="${esc(p.sv)}" aria-label="Listen">${SPK}</button></div></div>` : ""}
         <div class="opts">${opts}</div>
         ${pl.wrong.length && !pl.solved ? `<p class="warn small" style="margin:10px 0 0">Not quite, try again.</p>` : ""}
       </div>
@@ -350,8 +358,8 @@
   function plResult() {
     const n = pl.order.length;
     app.innerHTML = `
-      <div class="card-box" style="text-align:center">
-        <h2>${pl.firstTry === n ? "Perfect! 🎉" : "Done!"}</h2>
+      <div class="card-box done-card">${burst()}
+        <h2>${pl.firstTry === n ? "Perfect!" : "Done!"}</h2>
         <p class="muted">${pl.firstTry} of ${n} right on the first try.</p>
         <p>Next, a flashcard round to lock these in.</p>
         <button class="primary big" data-act="pl-finish">Practice these ${n} cards</button>
@@ -404,7 +412,7 @@
       <label class="check"><input type="checkbox" data-act="prac-unlearned" ${prac.unlearned ? "checked" : ""}> Include verbs I haven't learned yet</label>
       <div class="card-box" style="margin-top:20px">
         ${p.length === 0 ? `<p class="muted">${learnedN === 0 ? "You haven't learned any verbs yet. Go to Learn first, or tick the box above." : "No cards match these filters."}</p>`
-          : `<p><b>${due}</b> due · <b>${fresh}</b> new ${due + fresh === 0 ? "<span class='muted'>— nothing to review right now 🎉</span>" : ""}</p>`}
+          : `<p><b>${due}</b> due · <b>${fresh}</b> new ${due + fresh === 0 ? "<span class='muted'>— nothing to review right now</span>" : ""}</p>`}
         <button class="primary" data-act="prac-start" ${due + fresh === 0 ? "disabled" : ""}>Start session</button>
       </div>`;
   }
@@ -436,7 +444,7 @@
         <button class="primary" data-act="prac-start" ${due + fresh === 0 ? "disabled" : ""}>Start session</button>
       </div>
       <div class="vlist">${shown.map(x => `
-        <details class="v"><summary><span class="inf">${esc(x.pv)}</span><span class="rest">${esc(x.en)}</span>${pLearned(x) ? `<span class="tick" title="Learned">✓</span>` : ""}</summary>
+        <details class="v"><summary><span class="inf">${esc(x.pv)}</span><span class="rest">${esc(x.en)}</span>${pLearned(x) ? `<span class="tick" title="Learned">${CHK}</span>` : ""}</summary>
           <div class="body"><div class="sv" style="font-size:1.1rem">${esc(x.sv)}</div><div class="muted">${esc(x.sven)}</div>
           <p class="muted small" style="margin-top:8px">${x.forms.map(esc).join(" · ")}</p></div></details>`).join("")}</div>`;
   }
@@ -450,21 +458,21 @@
   }
 
   function conjHtml(v) {
-    return `<div class="conj"><div><span>Presens</span><b>${esc(v.p)}</b></div><div><span>Preteritum</span><b>${esc(v.t)}</b></div><div><span>Supinum</span><b>har ${esc(v.s)}</b></div></div>`;
+    return `<div class="conj"><div class="t-pres"><span>Presens</span><b>${esc(v.p)}</b></div><div class="t-pret"><span>Preteritum</span><b>${esc(v.t)}</b></div><div class="t-sup"><span>Supinum</span><b>har ${esc(v.s)}</b></div></div>`;
   }
   function faces(c) {
     const v = c.item;
     if (c.type === "A") return [
       `<span class="side">English</span><div class="big">${esc(v.en)}</div><div class="sub">${v.lvl} · ${tierLabel(v.tier)}</div>`,
-      `<span class="side">Svenska</span><div class="big">att ${esc(v.i)} <button class="icon-btn" data-act="speak" data-text="${esc(v.i)}" aria-label="Listen">🔊</button></div>${conjHtml(v)}`];
+      `<span class="side">Svenska</span><div class="big">att ${esc(v.i)} <button class="icon-btn" data-act="speak" data-text="${esc(v.i)}" aria-label="Listen">${SPK}</button></div>${conjHtml(v)}`];
     if (c.type === "C") return [
-      `<span class="side">Irregular verb</span><div class="big">att ${esc(v.i)} <button class="icon-btn" data-act="speak" data-text="${esc(v.i)}" aria-label="Listen">🔊</button></div><div class="sub">${esc(v.en)}</div><div class="sub small" style="margin-top:14px">presens · preteritum · supinum?</div>`,
+      `<span class="side">Irregular verb</span><div class="big">att ${esc(v.i)} <button class="icon-btn" data-act="speak" data-text="${esc(v.i)}" aria-label="Listen">${SPK}</button></div><div class="sub">${esc(v.en)}</div><div class="sub small" style="margin-top:14px">presens · preteritum · supinum?</div>`,
       `<span class="side">Conjugation</span><div class="big">att ${esc(v.i)}</div>${conjHtml(v)}<div class="example"><div style="font-size:1.05rem">${hl(v.ex[2][0])}</div><div class="muted small">${esc(v.ex[2][1])}</div></div>`];
     if (c.type === "B") return [
-      `<span class="side">Svenska</span><div class="big">att ${esc(v.i)} <button class="icon-btn" data-act="speak" data-text="${esc(v.i)}" aria-label="Listen">🔊</button></div><div class="sub">${v.lvl} · ${tierLabel(v.tier)}</div>`,
+      `<span class="side">Svenska</span><div class="big">att ${esc(v.i)} <button class="icon-btn" data-act="speak" data-text="${esc(v.i)}" aria-label="Listen">${SPK}</button></div><div class="sub">${v.lvl} · ${tierLabel(v.tier)}</div>`,
       `<span class="side">English</span><div class="big">${esc(v.en)}</div>${conjHtml(v)}`];
     return [
-      `<span class="side">Partikelverb</span><div class="big">${esc(v.pv)} <button class="icon-btn" data-act="speak" data-text="${esc(v.pv)}" aria-label="Listen">🔊</button></div><div class="sub">particle: ${esc(v.g)}</div>`,
+      `<span class="side">Partikelverb</span><div class="big">${esc(v.pv)} <button class="icon-btn" data-act="speak" data-text="${esc(v.pv)}" aria-label="Listen">${SPK}</button></div><div class="sub">particle: ${esc(v.g)}</div>`,
       `<span class="side">English</span><div class="big">${esc(v.en)}</div>
        <div class="example"><div style="font-size:1.1rem">${esc(v.sv)}</div><div class="muted">${esc(v.sven)}</div></div>
        <p class="muted small" style="margin:14px 0 0">${v.forms.map(esc).join(" · ")}</p>`];
@@ -478,7 +486,7 @@
     app.innerHTML = `
       <div class="progress"><span>Card ${Math.min(s.i + 1, s.queue.length)} of ${s.queue.length}</span><a href="${s.back}" class="small muted" data-act="end">End session</a></div>
       <div class="dots"><i class="done" style="flex:${s.i}"></i><i style="flex:${Math.max(s.queue.length - s.i, 0)}"></i></div>
-      <div class="flip ${s.flipped ? "flipped" : ""}" data-act="flip" tabindex="0" role="button" aria-label="Flip card">
+      <div class="flip card-${c.type} ${s.flipped ? "flipped" : ""}" data-act="flip" tabindex="0" role="button" aria-label="Flip card">
         <div class="flip-inner"><div class="face front">${front}</div><div class="face back">${back}</div></div>
       </div>
       <div class="hint">${s.flipped ? "How well did you know it?" : "Click the card or press Space to flip"}</div>
@@ -520,8 +528,8 @@
     else if (step.type === "done") cta = `<a class="btn primary" href="#/home">My progress</a>`;
     else cta = `<button class="primary big" data-act="guided-start">Keep going: ${step.type === "review" ? "review due cards" : "practice new verbs"}</button><a class="btn" href="#/home">My progress</a>`;
     app.innerHTML = `
-      <div class="card-box" style="text-align:center">
-        <h2>Session complete 🎉</h2>
+      <div class="card-box done-card">${burst()}
+        <h2>Session complete</h2>
         <p class="muted">${s.total} cards reviewed${s.again ? `, ${s.again} to repeat` : ""}.</p>
         ${s.guided && step.type === "learn" ? `<p>Nice work. Ready for the next five?</p>` : ""}
         <div class="row" style="justify-content:center">${cta}</div>
@@ -531,8 +539,8 @@
   function particleDone() {
     const s = session, nb = nextParticleBatch();
     app.innerHTML = `
-      <div class="card-box" style="text-align:center">
-        <h2>Group complete 🎉</h2>
+      <div class="card-box done-card">${burst()}
+        <h2>Group complete</h2>
         <p class="muted">${s.total} particle verbs practised.</p>
         ${nb ? `<p>Next group: <b>${esc(stemsLabel(nb))}</b></p>` : `<p>You've learned every particle verb!</p>`}
         <div class="row" style="justify-content:center">
@@ -561,7 +569,7 @@
       <details class="v"><summary>
         <span class="inf">${esc(v.i)}</span>
         <span class="rest">${esc(v.p)} · ${esc(v.t)} · ${esc(v.s)} — ${esc(v.en)}</span>
-        ${state.learned[v.i] ? `<span class="tick" title="Learned">✓</span>` : ""}
+        ${state.learned[v.i] ? `<span class="tick" title="Learned">${CHK}</span>` : ""}
       </summary><div class="body">${tags(v)}${sentencesHtml(v)}</div></details>`).join("")}</div>`
       : `<div class="empty">No verbs found.</div>`;
   }

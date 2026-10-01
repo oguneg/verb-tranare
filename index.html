@@ -4,17 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Verbträning</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="top">
-    <a class="brand" href="#/home">Verb<span>träning</span></a>
-    <nav>
-      <a href="#/home" data-nav="home">My progress</a>
-      <a href="#/practice" data-nav="practice">Practice</a>
-      <a href="#/particles" data-nav="particles">Particle verbs</a>
-      <a href="#/verbs" data-nav="verbs">All verbs</a>
-    </nav>
+    <div class="top-in">
+      <a class="brand" href="#/home"><span class="brand-mark" aria-hidden="true"></span>Verbträning</a>
+      <nav aria-label="Main">
+        <a href="#/home" data-nav="home">My progress</a>
+        <a href="#/practice" data-nav="practice">Practice</a>
+        <a href="#/particles" data-nav="particles">Particle verbs</a>
+        <a href="#/verbs" data-nav="verbs">All verbs</a>
+      </nav>
+    </div>
   </header>
   <main id="app"></main>
 
