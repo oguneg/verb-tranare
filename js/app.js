@@ -84,7 +84,7 @@
   const tags = v => `<span class="badge">${v.lvl}</span> <span class="badge gold">${tierLabel(v.tier)}</span>`;
 
   /* ---------- router ---------- */
-  const routes = { home, learn: learnView, practice: practiceSetup, particles: particleSetup, verbs: verbsView };
+  const routes = { home, learn: learnView, practice: practiceSetup, particles: particleSetup, pl: plView, verbs: verbsView };
   let session = null;
 
   function route() {
@@ -121,6 +121,17 @@
   }
   function startGuidedPractice() { startSession(guidedQueue(), "#/home", true); }
   function goto(hash) { if (location.hash === hash) route(); else location.hash = hash; }
+
+  function particleCard() {
+    const done = PARTS.filter(pLearned).length, nb = nextParticleBatch();
+    return `<div class="card-box" style="margin-top:16px">
+      <div class="row between"><h3>Particle verbs</h3><span class="muted small">${done} / ${PARTS.length} learned</span></div>
+      <div class="bar"><i style="width:${done / PARTS.length * 100}%"></i></div>
+      ${nb ? `<p class="muted">Next group: <b>${esc(stemsLabel(nb))}</b> · ${nb.map(p => esc(p.pv)).join(", ")}</p>
+        <div class="row"><button class="primary" data-act="pl-start">Learn this group</button><a class="btn" href="#/particles">Practice</a></div>`
+        : `<p class="muted">All particle verbs learned. Keep them fresh in <a href="#/particles">Practice</a>.</p>`}
+    </div>`;
+  }
 
   function home() {
     const learnedN = learnedVerbs().length;
@@ -164,6 +175,7 @@
       <h1>My progress</h1>
       <ol class="path">${path}</ol>
       <div class="card-box next">${card}${skip}</div>
+      ${particleCard()}
       <div class="stats">
         <div class="stat"><b>${learnedN}</b><span class="muted">of ${VERBS.length} verbs learned</span></div>
         <div class="stat"><b>${dueN}</b><span class="muted">cards due now</span></div>
@@ -224,6 +236,122 @@
       </div>`;
   }
 
+  /* ---------- particle verb learning (grouped by stem verb) ---------- */
+  const stemOf = pv => pv.split(" ")[0];
+  const pKey = p => "P:" + p.pv;
+  const pLearned = p => !!state.learned[pKey(p)];
+
+  // Batches of up to 5 particle verbs sharing a stem (all "hålla", then "ta" ...).
+  // Stems with fewer than 3 verbs are pooled together so no batch is tiny.
+  function particleBatches() {
+    const stems = {};
+    PARTS.forEach(p => (stems[stemOf(p.pv)] = stems[stemOf(p.pv)] || []).push(p));
+    const order = Object.values(stems).sort((a, b) =>
+      Math.min(...a.map(x => x.tier)) - Math.min(...b.map(x => x.tier)) || b.length - a.length);
+    const batches = []; let carry = [];
+    for (const list of order) {
+      const parts = Math.ceil(list.length / 5), size = Math.ceil(list.length / parts);
+      for (let i = 0; i < list.length; i += size) {
+        const chunk = list.slice(i, i + size);
+        if (chunk.length >= 3) batches.push(chunk);
+        else { carry = carry.concat(chunk); if (carry.length >= 3) { batches.push(carry); carry = []; } }
+      }
+    }
+    if (carry.length) batches.push(carry);
+    return batches;
+  }
+  function nextParticleBatch() {
+    for (const b of particleBatches()) {
+      const todo = b.filter(p => !pLearned(p));
+      if (todo.length) return todo;
+    }
+    return null;
+  }
+  const stemsLabel = b => [...new Set(b.map(p => stemOf(p.pv)))].join(" + ");
+
+  const pl = { batch: null, idx: 0, phase: "study", opts: [], order: [], qi: 0, wrong: [], solved: false, firstTry: 0 };
+
+  function startParticleLearning() {
+    pl.batch = nextParticleBatch();
+    if (!pl.batch) return home();
+    Object.assign(pl, { idx: 0, phase: "study", opts: shuffle(pl.batch), order: shuffle(pl.batch), qi: 0, wrong: [], solved: false, firstTry: 0 });
+    goto("#/pl");
+  }
+
+  function plView() {
+    if (!pl.batch) return goto("#/particles");
+    return pl.phase === "study" ? plStudy() : plQuiz();
+  }
+
+  function plStudy() {
+    const b = pl.batch, p = b[pl.idx], last = pl.idx === b.length - 1;
+    const dots = b.map((_, k) => `<i class="${k < pl.idx ? "done" : k === pl.idx ? "cur" : ""}"></i>`).join("");
+    const family = b.map((x, k) => `<span class="chip ${k === pl.idx ? "on" : ""}">${esc(x.pv)}</span>`).join(" ");
+    app.innerHTML = `
+      <div class="dots">${dots}</div>
+      <p class="muted small" style="margin:0 0 8px">Group: <b>${esc(stemsLabel(b))}</b></p>
+      <div class="card-box">
+        <div class="vhead">
+          <div><h2>${esc(p.pv)}</h2><div class="muted">${esc(p.en)}</div></div>
+          <div><span class="badge">particle: ${esc(p.g)}</span></div>
+        </div>
+        <div class="forms" style="grid-template-columns:repeat(3,1fr)">
+          <div><span>Presens</span><b>${esc(p.forms[0])}</b></div>
+          <div><span>Preteritum</span><b>${esc(p.forms[1])}</b></div>
+          <div><span>Supinum</span><b>har ${esc(p.forms[2])}</b></div>
+        </div>
+        <div class="tense">
+          <div class="lab">Example</div>
+          <div class="sv">${esc(p.sv)}</div>
+          <button class="icon-btn" data-act="speak" data-text="${esc(p.sv)}" aria-label="Listen">🔊</button>
+          <div class="en">${esc(p.sven)}</div>
+        </div>
+        <div class="groups" style="margin:14px 0 0">${family}</div>
+      </div>
+      <div class="nav-row">
+        <button data-act="pl-prev" ${pl.idx === 0 ? "disabled" : ""}>← Back</button>
+        ${last ? `<button class="primary" data-act="pl-quiz">Quick quiz →</button>` : `<button class="primary" data-act="pl-next">Next →</button>`}
+      </div>`;
+  }
+
+  function plQuiz() {
+    const b = pl.batch;
+    if (pl.qi >= pl.order.length) return plResult();
+    const p = pl.order[pl.qi];
+    const opts = pl.opts.map(o => {
+      const cls = pl.solved && o.pv === p.pv ? "ok" : pl.wrong.includes(o.pv) ? "bad" : "";
+      return `<button class="${cls}" data-act="pl-pick" data-v="${esc(o.pv)}" ${pl.solved || pl.wrong.includes(o.pv) ? "disabled" : ""}>${esc(o.pv)}</button>`;
+    }).join("");
+    app.innerHTML = `
+      <div class="progress"><span>Question ${pl.qi + 1} of ${pl.order.length}</span><span>${esc(stemsLabel(b))}</span></div>
+      <div class="card-box">
+        <p class="muted small">Which particle verb says this in Swedish?</p>
+        <div class="big-q">${esc(p.sven)}</div>
+        ${pl.solved ? `<div class="reveal"><div style="font-size:1.1rem">${esc(p.sv)} <button class="icon-btn" data-act="speak" data-text="${esc(p.sv)}" aria-label="Listen">🔊</button></div></div>` : ""}
+        <div class="opts">${opts}</div>
+        ${pl.wrong.length && !pl.solved ? `<p class="warn small" style="margin:10px 0 0">Not quite, try again.</p>` : ""}
+      </div>
+      <div class="nav-row"><span></span>${pl.solved ? `<button class="primary" data-act="pl-qnext">${pl.qi === pl.order.length - 1 ? "See result" : "Next →"}</button>` : ""}</div>`;
+  }
+
+  function plResult() {
+    const n = pl.order.length;
+    app.innerHTML = `
+      <div class="card-box" style="text-align:center">
+        <h2>${pl.firstTry === n ? "Perfect! 🎉" : "Done!"}</h2>
+        <p class="muted">${pl.firstTry} of ${n} right on the first try.</p>
+        <p>Next, a flashcard round to lock these in.</p>
+        <button class="primary big" data-act="pl-finish">Practice these ${n} cards</button>
+      </div>`;
+  }
+
+  function plFinish() {
+    const b = pl.batch;
+    b.forEach(p => { state.learned[pKey(p)] = Date.now(); });
+    save(); pl.batch = null;
+    startSession(shuffle(b.map(p => ({ key: "P:" + p.pv, type: "P", tier: p.tier, group: p.g, item: p }))), "#/home", true, "particle");
+  }
+
   /* ---------- practice setup ---------- */
   const prac = { mode: "A", tier: "all", unlearned: false, group: "all" };
 
@@ -278,7 +406,12 @@
     app.innerHTML = `
       <h1>Particle verbs</h1>
       <p class="muted">Partikelverb change meaning with their particle. Front: the particle verb. Back: English and an example sentence.</p>
-      <div class="opt-title">Group by particle</div>
+      <div class="card-box" style="margin-bottom:16px">
+        <b>Learn by stem verb</b>
+        <p class="muted small" style="margin:.2rem 0 .6rem">Study particle verbs in groups that share a stem (hålla med, hålla på, …), then take a quick quiz.</p>
+        <button class="primary" data-act="pl-start">${nextParticleBatch() ? "Learn next group" : "All learned"}</button>
+      </div>
+      <div class="opt-title">Practice by particle</div>
       <div class="groups">${chips}</div>
       <div class="opt-title">Frequency</div>
       <div class="groups">${tierChips}</div>
@@ -287,16 +420,16 @@
         <button class="primary" data-act="prac-start" ${due + fresh === 0 ? "disabled" : ""}>Start session</button>
       </div>
       <div class="vlist">${shown.map(x => `
-        <details class="v"><summary><span class="inf">${esc(x.pv)}</span><span class="rest">${esc(x.en)}</span></summary>
+        <details class="v"><summary><span class="inf">${esc(x.pv)}</span><span class="rest">${esc(x.en)}</span>${pLearned(x) ? `<span class="tick" title="Learned">✓</span>` : ""}</summary>
           <div class="body"><div class="sv" style="font-size:1.1rem">${esc(x.sv)}</div><div class="muted">${esc(x.sven)}</div>
           <p class="muted small" style="margin-top:8px">${x.forms.map(esc).join(" · ")}</p></div></details>`).join("")}</div>`;
   }
 
   /* ---------- flashcard session ---------- */
-  function startSession(queue, back, guided) {
+  function startSession(queue, back, guided, kind) {
     queue = queue || buildQueue(prac);
     if (!queue.length) return;
-    session = { queue, i: 0, flipped: false, total: queue.length, again: 0, back: back || location.hash, guided: !!guided };
+    session = { queue, i: 0, flipped: false, total: queue.length, again: 0, back: back || location.hash, guided: !!guided, kind: kind || "verb" };
     renderSession();
   }
 
@@ -359,7 +492,9 @@
   }
 
   function sessionDone() {
-    const s = session, step = s.guided ? nextStep() : null;
+    const s = session;
+    if (s.kind === "particle") return particleDone();
+    const step = s.guided ? nextStep() : null;
     let cta;
     if (!s.guided) cta = `<a class="btn primary" href="${s.back}" data-act="again-session">Another round</a><a class="btn" href="#/home">Home</a>`;
     else if (step.type === "learn") cta = `<button class="primary big" data-act="learn-start">Next: learn 5 new verbs</button><a class="btn" href="#/home">My progress</a>`;
@@ -371,6 +506,20 @@
         <p class="muted">${s.total} cards reviewed${s.again ? `, ${s.again} to repeat` : ""}.</p>
         ${s.guided && step.type === "learn" ? `<p>Nice work. Ready for the next five?</p>` : ""}
         <div class="row" style="justify-content:center">${cta}</div>
+      </div>`;
+  }
+
+  function particleDone() {
+    const s = session, nb = nextParticleBatch();
+    app.innerHTML = `
+      <div class="card-box" style="text-align:center">
+        <h2>Group complete 🎉</h2>
+        <p class="muted">${s.total} particle verbs practised.</p>
+        ${nb ? `<p>Next group: <b>${esc(stemsLabel(nb))}</b></p>` : `<p>You've learned every particle verb!</p>`}
+        <div class="row" style="justify-content:center">
+          ${nb ? `<button class="primary big" data-act="pl-start">Learn next group</button>` : ""}
+          <a class="btn ${nb ? "" : "primary"}" href="#/home">My progress</a>
+        </div>
       </div>`;
   }
 
@@ -413,6 +562,17 @@
       case "learn-tier": learn.tier = v === "all" ? v : +v; return learnView();
       case "learn-start": return startLearning();
       case "guided-start": return startGuidedPractice();
+      case "pl-start": return startParticleLearning();
+      case "pl-next": pl.idx++; return plStudy();
+      case "pl-prev": pl.idx--; return plStudy();
+      case "pl-quiz": pl.phase = "quiz"; return plQuiz();
+      case "pl-pick": {
+        const cur = pl.order[pl.qi];
+        if (v === cur.pv) { pl.solved = true; if (!pl.wrong.length) pl.firstTry++; } else if (!pl.wrong.includes(v)) pl.wrong.push(v);
+        return plQuiz();
+      }
+      case "pl-qnext": pl.qi++; pl.solved = false; pl.wrong = []; return plQuiz();
+      case "pl-finish": return plFinish();
       case "learn-tier-home": learn.tier = v === "all" ? v : +v; return home();
       case "learn-next": learn.idx++; return learnView();
       case "learn-prev": learn.idx--; return learnView();
@@ -444,7 +604,7 @@
   });
 
   // leaving a learn batch half-way resets it
-  window.addEventListener("hashchange", () => { if (!location.hash.startsWith("#/learn")) learn.batch = null; });
+  window.addEventListener("hashchange", () => { if (!location.hash.startsWith("#/learn")) learn.batch = null; if (location.hash !== "#/pl") pl.batch = null; });
 
   route();
 })();

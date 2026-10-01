@@ -191,3 +191,11 @@ details.v .body { padding: 0 1rem 1rem; }
 .linklike { background: none; border: 0; padding: 0; color: var(--blue); text-decoration: underline; cursor: pointer; font: inherit; }
 .stats { margin-top: 16px; }
 .stats + .card-box { margin-top: 0; }
+
+/* particle quiz */
+.big-q { font-size: 1.4rem; font-weight: 600; margin: .25rem 0 1rem; }
+.reveal { margin-bottom: 1rem; padding: .6rem .8rem; background: var(--blue-soft); border-radius: 10px; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.opts button { text-align: left; font-weight: 600; }
+.opts .bad { border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
+.opts .ok { border-color: var(--good); background: var(--blue-soft); }
