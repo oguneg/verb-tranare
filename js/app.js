@@ -30,7 +30,9 @@
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const byId = Object.fromEntries(VERBS.map(v => [v.i, v]));
   const tiers = [...new Set(VERBS.map(v => v.tier))].sort();
-  const tierLabel = t => t === "all" ? "All levels" : `Top ${t === 1 ? "1–50" : t === 2 ? "51–100" : t === 3 ? "101–150" : "tier " + t}`;
+  const tierRange = {};
+  tiers.reduce((from, t) => { const n = VERBS.filter(v => v.tier === t).length; tierRange[t] = `${from}–${from + n - 1}`; return from + n; }, 1);
+  const tierLabel = t => t === "all" ? "All levels" : `Top ${tierRange[t]}`;
 
   function speak(text) {
     if (!("speechSynthesis" in window)) return;

@@ -217,6 +217,7 @@ label.check { display: inline-flex; gap: .55rem; align-items: center; cursor: po
 .bar i { display: block; height: 100%; border-radius: 99px; background: var(--sage-deep); transform-origin: left; animation: grow .9s var(--ease) both; }
 .bar.t2 i { background: var(--butter-deep); }
 .bar.t3 i { background: var(--rose-deep); }
+.bar.t4 i { background: var(--sky-deep); }
 .bar.irr i { background: var(--lilac-deep); }
 .bar.part i { background: var(--sky-deep); }
 @keyframes grow { from { transform: scaleX(0); } }

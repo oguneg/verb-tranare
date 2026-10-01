@@ -9,7 +9,10 @@
     "gråta", "le", "sälja", "flyga", "välja", "bjuda", "erbjuda",
     "stiga", "bryta", "undvika", "behålla", "beskriva", "föredra", "fortsätta", "försvinna", "skjuta",
     "ljuga", "rida", "slippa", "stjäla", "tillåta", "växa", "bestå", "bita", "brinna", "dö", "frysa",
-    "krypa", "sjunka", "skära", "slita", "binda"
+    "krypa", "sjunka", "skära", "slita", "binda",
+    "fara", "finna", "gripa", "hugga", "lida", "njuta", "skrika", "smita", "sticka", "svära", "vrida", "förbjuda",
+    "avgöra", "inse", "uppfinna", "avbryta", "uppstå", "rinna", "spricka", "hinna", "synas", "slåss", "knyta",
+    "driva", "ingå", "vika", "tiga", "skina", "föreslå", "delta", "leda", "svälja"
   ];
   const set = new Set(IRREGULAR);
   window.VERBS.forEach(v => { v.irr = set.has(v.i); });

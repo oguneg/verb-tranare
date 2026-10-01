@@ -24,7 +24,7 @@ Guided rather than a flat flashcard deck: "My progress" always names the next st
 
 ## Capabilities and Constraints
 
-151 verbs, 130 particle verbs, 68 irregular verbs; flashcard directions A (EN→SV), B (SV→EN), C (irregular conjugations); SM-2-style scheduling; Swedish text-to-speech via browser. Layout may change in a redesign, behaviour and content stay.
+261 verbs, 130 particle verbs, 100 irregular verbs; flashcard directions A (EN→SV), B (SV→EN), C (irregular conjugations); SM-2-style scheduling; Swedish text-to-speech via browser. Layout may change in a redesign, behaviour and content stay.
 
 ## Evidence on Hand
 
