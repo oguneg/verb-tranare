@@ -26,7 +26,7 @@
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const byId = Object.fromEntries(VERBS.map(v => [v.i, v]));
   const tiers = [...new Set(VERBS.map(v => v.tier))].sort();
-  const tierLabel = t => t === "all" ? "All levels" : `Top ${t === 1 ? "1–50" : t === 2 ? "51–100" : "tier " + t}`;
+  const tierLabel = t => t === "all" ? "All levels" : `Top ${t === 1 ? "1–50" : t === 2 ? "51–100" : t === 3 ? "101–150" : "tier " + t}`;
 
   function speak(text) {
     if (!("speechSynthesis" in window)) return;
@@ -56,6 +56,7 @@
     for (const v of VERBS) {
       cards.push({ key: "A:" + v.i, type: "A", tier: v.tier, item: v });
       cards.push({ key: "B:" + v.i, type: "B", tier: v.tier, item: v });
+      if (v.irr) cards.push({ key: "C:" + v.i, type: "C", tier: v.tier, item: v });
     }
     for (const p of PARTS) cards.push({ key: "P:" + p.pv, type: "P", tier: p.tier, group: p.g, item: p });
     return cards;
@@ -81,7 +82,7 @@
         <div class="en">${esc(en)}</div>
       </div>`).join("");
   }
-  const tags = v => `<span class="badge">${v.lvl}</span> <span class="badge gold">${tierLabel(v.tier)}</span>`;
+  const tags = v => `<span class="badge">${v.lvl}</span> <span class="badge gold">${tierLabel(v.tier)}</span>${v.irr ? ` <span class="badge irr">irregular</span>` : ""}`;
 
   /* ---------- router ---------- */
   const routes = { home, learn: learnView, practice: practiceSetup, particles: particleSetup, pl: plView, verbs: verbsView };
@@ -133,6 +134,17 @@
     </div>`;
   }
 
+  function irregularCard() {
+    const irr = VERBS.filter(v => v.irr), learned = irr.filter(v => state.learned[v.i]).length;
+    const ready = allCards().filter(c => c.type === "C" && state.learned[c.item.i] && (isNew(c) || isDue(c))).length;
+    return `<div class="card-box" style="margin-top:16px">
+      <div class="row between"><h3>Irregular verbs</h3><span class="muted small">${learned} / ${irr.length} learned</span></div>
+      <div class="bar"><i style="width:${irr.length ? learned / irr.length * 100 : 0}%"></i></div>
+      <p class="muted">${learned === 0 ? "Irregular verbs are mixed into your normal lessons. Once you've learned some, drill their conjugations here." : ready ? `<b>${ready}</b> conjugation card${ready === 1 ? "" : "s"} ready to practice.` : "Nothing due right now. Nice!"}</p>
+      <button class="primary" data-act="irr-start" ${learned === 0 ? "disabled" : ""}>Practice conjugations</button>
+    </div>`;
+  }
+
   function home() {
     const learnedN = learnedVerbs().length;
     const cards = verbCards();
@@ -176,6 +188,7 @@
       <ol class="path">${path}</ol>
       <div class="card-box next">${card}${skip}</div>
       ${particleCard()}
+      ${irregularCard()}
       <div class="stats">
         <div class="stat"><b>${learnedN}</b><span class="muted">of ${VERBS.length} verbs learned</span></div>
         <div class="stat"><b>${dueN}</b><span class="muted">cards due now</span></div>
@@ -353,12 +366,13 @@
   }
 
   /* ---------- practice setup ---------- */
-  const prac = { mode: "A", tier: "all", unlearned: false, group: "all" };
+  const prac = { mode: "A", tier: "all", unlearned: false, group: "all", irrOnly: false };
 
   function pool(o) {
     return allCards().filter(c => {
       if (o.mode === "P") return c.type === "P" && (o.tier === "all" || c.tier === o.tier) && (o.group === "all" || c.group === o.group);
       if (c.type !== o.mode) return false;
+      if (o.irrOnly && !c.item.irr) return false;
       if (o.tier !== "all" && c.tier !== o.tier) return false;
       return o.unlearned || state.learned[c.item.i];
     });
@@ -381,10 +395,12 @@
       <div class="groups">
         ${modeBtn("A", "A · English → Swedish", "English on the front, Swedish infinitiv and conjugations on the back")}
         ${modeBtn("B", "B · Swedish → English", "Swedish infinitiv on the front, English and conjugations on the back")}
+        ${modeBtn("C", "C · Irregular conjugations", "Swedish infinitiv on the front, presens / preteritum / supinum on the back (irregular verbs only)")}
       </div>
-      <p class="muted small">${prac.mode === "A" ? "Front: English. Back: Swedish infinitiv with presens, preteritum and supinum below." : "Front: Swedish infinitiv. Back: English with the Swedish conjugations below."}</p>
+      <p class="muted small">${{ A: "Front: English. Back: Swedish infinitiv with presens, preteritum and supinum below.", B: "Front: Swedish infinitiv. Back: English with the Swedish conjugations below.", C: "Irregular verbs only. Front: the infinitiv. Back: presens, preteritum and supinum. Can you recall the forms?" }[prac.mode]}</p>
       <div class="opt-title">Frequency</div>
       <div class="groups">${tierChips}</div>
+      ${prac.mode === "C" ? "" : `<label class="check" style="margin-right:1.2rem"><input type="checkbox" data-act="prac-irr" ${prac.irrOnly ? "checked" : ""}> Irregular verbs only</label>`}
       <label class="check"><input type="checkbox" data-act="prac-unlearned" ${prac.unlearned ? "checked" : ""}> Include verbs I haven't learned yet</label>
       <div class="card-box" style="margin-top:20px">
         ${p.length === 0 ? `<p class="muted">${learnedN === 0 ? "You haven't learned any verbs yet. Go to Learn first, or tick the box above." : "No cards match these filters."}</p>`
@@ -400,7 +416,7 @@
     const count = g => PARTS.filter(p => p.g === g).length;
     const chips = [`<button class="chip ${prac.group === "all" ? "on" : ""}" data-act="part-group" data-v="all">All (${PARTS.length})</button>`]
       .concat(groups.map(g => `<button class="chip ${prac.group === g ? "on" : ""}" data-act="part-group" data-v="${esc(g)}">${esc(g)} (${count(g)})</button>`)).join("");
-    const tierChips = ["all", ...tiers].map(t => `<button class="chip ${prac.tier === t ? "on" : ""}" data-act="part-tier" data-v="${t}">${t === "all" ? "All levels" : t === 1 ? "Common" : "Next steps"}</button>`).join("");
+    const tierChips = ["all", ...tiers].map(t => `<button class="chip ${prac.tier === t ? "on" : ""}" data-act="part-tier" data-v="${t}">${t === "all" ? "All levels" : t === 1 ? "Common" : t === 2 ? "Useful" : "Advanced"}</button>`).join("");
     const p = pool(prac), due = p.filter(isDue).length, fresh = Math.min(p.filter(isNew).length, NEW_PER_SESSION);
     const shown = PARTS.filter(x => (prac.group === "all" || x.g === prac.group) && (prac.tier === "all" || x.tier === prac.tier));
     app.innerHTML = `
@@ -441,6 +457,9 @@
     if (c.type === "A") return [
       `<span class="side">English</span><div class="big">${esc(v.en)}</div><div class="sub">${v.lvl} · ${tierLabel(v.tier)}</div>`,
       `<span class="side">Svenska</span><div class="big">att ${esc(v.i)} <button class="icon-btn" data-act="speak" data-text="${esc(v.i)}" aria-label="Listen">🔊</button></div>${conjHtml(v)}`];
+    if (c.type === "C") return [
+      `<span class="side">Irregular verb</span><div class="big">att ${esc(v.i)} <button class="icon-btn" data-act="speak" data-text="${esc(v.i)}" aria-label="Listen">🔊</button></div><div class="sub">${esc(v.en)}</div><div class="sub small" style="margin-top:14px">presens · preteritum · supinum?</div>`,
+      `<span class="side">Conjugation</span><div class="big">att ${esc(v.i)}</div>${conjHtml(v)}<div class="example"><div style="font-size:1.05rem">${hl(v.ex[2][0])}</div><div class="muted small">${esc(v.ex[2][1])}</div></div>`];
     if (c.type === "B") return [
       `<span class="side">Svenska</span><div class="big">att ${esc(v.i)} <button class="icon-btn" data-act="speak" data-text="${esc(v.i)}" aria-label="Listen">🔊</button></div><div class="sub">${v.lvl} · ${tierLabel(v.tier)}</div>`,
       `<span class="side">English</span><div class="big">${esc(v.en)}</div>${conjHtml(v)}`];
@@ -524,19 +543,19 @@
   }
 
   /* ---------- verb list ---------- */
-  const vlist = { q: "", tier: "all" };
+  const vlist = { q: "", tier: "all", irr: false };
   function verbsView() {
     const chips = ["all", ...tiers].map(t => `<button class="chip ${vlist.tier === t ? "on" : ""}" data-act="list-tier" data-v="${t}">${tierLabel(t)}</button>`).join("");
     app.innerHTML = `
       <h1>All verbs</h1>
       <input type="search" id="q" placeholder="Search Swedish or English…" value="${esc(vlist.q)}" aria-label="Search verbs">
-      <div class="groups" style="margin-top:12px">${chips}</div>
+      <div class="groups" style="margin-top:12px">${chips}<button class="chip ${vlist.irr ? "on" : ""}" data-act="list-irr">Irregular only</button></div>
       <div id="vl"></div>`;
     renderVlist();
   }
   function renderVlist() {
     const q = vlist.q.trim().toLowerCase();
-    const list = VERBS.filter(v => (vlist.tier === "all" || v.tier === vlist.tier) &&
+    const list = VERBS.filter(v => (vlist.tier === "all" || v.tier === vlist.tier) && (!vlist.irr || v.irr) &&
       (!q || v.i.includes(q) || v.en.toLowerCase().includes(q) || [v.p, v.t, v.s].some(f => f.includes(q))));
     document.getElementById("vl").innerHTML = list.length ? `<div class="vlist">${list.map(v => `
       <details class="v"><summary>
@@ -586,12 +605,15 @@
       case "prac-start": return startSession();
       case "end": e.preventDefault(); return goto(session ? session.back : "#/home");
       case "again-session": e.preventDefault(); return startSession();
+      case "list-irr": vlist.irr = !vlist.irr; return verbsView();
+      case "irr-start": prac.mode = "C"; prac.unlearned = false; prac.tier = "all"; return goto("#/practice");
       case "list-tier": vlist.tier = v === "all" ? v : +v; return verbsView();
     }
   });
   app.addEventListener("change", e => {
     const act = e.target.dataset.act;
     if (act === "toggle-en") { learn.showEn = e.target.checked; learnCard(); }
+    if (act === "prac-irr") { prac.irrOnly = e.target.checked; practiceSetup(); }
     if (act === "prac-unlearned") { prac.unlearned = e.target.checked; practiceSetup(); }
   });
   app.addEventListener("input", e => {

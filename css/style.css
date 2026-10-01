@@ -199,3 +199,6 @@ details.v .body { padding: 0 1rem 1rem; }
 .opts button { text-align: left; font-weight: 600; }
 .opts .bad { border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
 .opts .ok { border-color: var(--good); background: var(--blue-soft); }
+
+.badge.irr { background: #fde2dd; color: #9a2f1c; }
+@media (prefers-color-scheme: dark) { .badge.irr { background: #4a2420; color: #f4a395; } }
