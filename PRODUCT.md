@@ -16,7 +16,7 @@ A self-learning adult, English as first language, studying Swedish verbs in shor
 
 ## Product Purpose
 
-Verbträning teaches Swedish verbs: learn five at a time with four example sentences (infinitiv, presens, preteritum, supinum), then lock them in with spaced-repetition flashcards. Includes particle verbs (grouped by stem verb) and an irregular-verb conjugation drill. Success is a steady learn → practice → review habit.
+Verbträning teaches Swedish verbs in two tracks: first words (meaning, infinitiv, presens), then conjugations (preteritum, supinum), five verbs at a time, each followed by spaced-repetition flashcards. Every verb has a mastery level. Includes particle verbs (grouped by stem verb) and an irregular-verb conjugation drill. Success is a steady learn → practice → review habit.
 
 ## Positioning
 

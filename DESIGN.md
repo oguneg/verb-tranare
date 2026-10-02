@@ -1,30 +1,21 @@
 # Design
 
-Verbträning is a street of painted Swedish timber houses. Colour carries meaning; shapes are architectural (arched doors, round windows, gables, pills). Friendly and lively, never cartoony or precious.
+Verbträning is a street of painted Swedish timber houses, kept calm. One accent colour (indigo) does all the pointing; pastel paints are reserved for the four tenses so colour only appears where it teaches. Shapes stay architectural: arched "doors" for the next-step card and flashcards, pills for controls, a short skyline strip on the header.
+
+## Principles
+- One primary action per screen. Everything else is quiet text.
+- Reveal progressively: a new learner sees one card and one button. Practice, All verbs, Conjugations and Particle verbs appear in the nav as they become relevant ("Coming up" on Home says what unlocks them). "Show all features" on Home reveals everything.
+- Words before forms: lessons teach meaning + infinitiv + presens first; preteritum + supinum are a separate lesson per verb, offered once that verb's words reach level 2 (Learning).
+- Mastery, not known/unknown: every verb has a level (Not started, Started, Learning, Familiar, Strong, Mastered) derived from its card intervals (4, 10, 30, 90 days). Words and conjugations are tracked separately.
 
 ## Colour
-Pale cool ground (`--ground`), one indigo for ink and primary action (`--ink`, `--primary`), and a set of pastel facade paints used as fills:
-
-| Paint | Role |
-|---|---|
-| sage | infinitiv, "next: learn" door, card C (irregular), done steps |
-| butter | presens, current step, "next: practice" door |
-| rose | preteritum, "next: review" door, again, irregular badge |
-| sky-paint | supinum, particle-verbs card |
-| lilac | particle card type (P), irregular-verbs card, "all caught up" door |
-| peach | card type A (EN to SV), hard |
-| mint | card type B (SV to EN) |
-
-Tense colours are fixed across the whole app (`.t-inf .t-pres .t-pret .t-sup`). A card's paint must never equal the paint of tiles drawn on it. Dark mode is a night street: deep indigo ground, same paints at low lightness, lighter indigo primary.
+Neutral ground, white surfaces, indigo `--primary` and its tint `--tint`. Mastery uses one hue light to dark (`--m0` to `--m5`). Tense paints (`.t-inf` sage, `.t-pres` butter, `.t-pret` rose, `.t-sup` sky) appear only on conjugation tiles and sentence rows. Dark mode is a night street with the same structure.
 
 ## Type
-Familjen Grotesk (display, headings, big forms, numerals) and Figtree (body), both from Google Fonts. Sentence-case labels, no tracked uppercase.
-
-## Shape
-Arch-topped "doors" (large top radius, round window dot) for the next-step card and every flashcard; 20-28px radii on surfaces; pills for chips, buttons, stats and nav tabs (nav tabs have an arched top). A pastel skyline SVG (`img/skyline.svg`) stands on the header edge with a slowly bobbing sun.
-
-## Depth and motion
-Soft two-layer shadows, no outlines, no hard offset shadows. Exponential ease-out only (`--ease`, `--spring`, no overshoot). One authored moment per route change (staggered rise), progress bars grow in, cards flip in 3D, completion screens release a burst of pastel dots. All motion is disabled under `prefers-reduced-motion`.
+Familjen Grotesk (display, big verb forms) and Figtree (body). Sentence-case labels. Swedish terms always carry an English gloss on first sight: Preteritum (past), Supinum (perfect).
 
 ## Components
-`.card-box` surface, `.next` door, `.path` step pills, `.pill-stat`, `.chip` (cycling paints, `.on` = primary), `.tense` rows tinted by tense, `.face` flashcard door (`.card-A/B/C/P`), `.rate` buttons (rose/peach/sage/sky), `.opts` quiz pills, `.bar` tier-coloured progress, `.burst` completion.
+`.card-box`, `.next` (arched next-step door), `.batch-list`, `.mbar` + `.legend` (verbs by level), `.pips` (5-dot level), `.pair` (form tiles), `.tense` (sentence row), `.choice` (practice type), `.face` flashcard (white front, tinted back, level pips), `.rate-row` (Not yet / Got it / Easy), `.opts` (quiz).
+
+## Motion
+Exponential ease-out only. One staggered rise on route change, 3D card flip, a small burst on finishing a session. All disabled under `prefers-reduced-motion`.
