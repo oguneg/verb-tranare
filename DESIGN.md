@@ -5,7 +5,7 @@ Verbträning is a street of painted Swedish timber houses, kept calm. One accent
 ## Principles
 - One primary action per screen. Everything else is quiet text.
 - Reveal progressively: a new learner sees one card and one button. Practice, All verbs, Conjugations and Particle verbs appear in the nav as they become relevant ("Coming up" on Home says what unlocks them). "Show all features" on Home reveals everything.
-- Words before forms: lessons teach meaning + infinitiv + presens first; preteritum + supinum are a separate lesson per verb, offered once that verb's words reach level 2 (Learning).
+- Words, then past, then perfect: lessons teach meaning + infinitiv + presens first. Preteritum is a separate lesson per verb, offered only once that verb's words are Familiar (about a week in), and only when 5 verbs qualify. Supinum is a third track, offered once the verb's preteritum is Familiar. Each has its own flashcards and level.
 - Mastery, not known/unknown: every verb has a level (Not started, Started, Learning, Familiar, Strong, Mastered) derived from its card intervals (4, 10, 30, 90 days). Words and conjugations are tracked separately.
 
 ## Colour

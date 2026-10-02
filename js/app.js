@@ -21,11 +21,13 @@
   /* ---------- storage ---------- */
   let state = load();
   function load() {
-    const base = { learned: {}, formsIntro: {}, cards: {}, showAll: false };
+    const base = { learned: {}, pretIntro: {}, supIntro: {}, cards: {}, showAll: false };
     let s;
     try { s = Object.assign(base, JSON.parse(localStorage.getItem(STORE) || "{}")); } catch { s = base; }
-    // older saves had conjugation cards without the "introduced" flag
-    Object.keys(s.cards).filter(k => k.startsWith("C:")).forEach(k => { s.formsIntro[k.slice(2)] = s.formsIntro[k.slice(2)] || Date.now(); });
+    // older saves: one "conjugation" track (formsIntro / C cards) becomes the preteritum track
+    Object.assign(s.pretIntro, s.formsIntro || {});
+    Object.keys(s.cards).filter(k => k.startsWith("C:")).forEach(k => { s.pretIntro[k.slice(2)] = s.pretIntro[k.slice(2)] || Date.now(); });
+    delete s.formsIntro;
     return s;
   }
   function save() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch { /* private mode */ } }
@@ -68,14 +70,14 @@
   const mkCard = (type, v) => ({ key: type + ":" + v.i, type, tier: v.tier, item: v });
   function allCards() {
     const cards = [];
-    for (const v of VERBS) { cards.push(mkCard("A", v), mkCard("B", v), mkCard("C", v)); }
+    for (const v of VERBS) { cards.push(mkCard("A", v), mkCard("B", v), mkCard("C", v), mkCard("D", v)); }
     for (const p of PARTS) cards.push({ key: "P:" + p.pv, type: "P", tier: p.tier, group: p.g, item: p });
     return cards;
   }
   const isDue = c => { const s = state.cards[c.key]; return s && s.due <= Date.now(); };
   const isNew = c => !state.cards[c.key];
   // cards the learner has been introduced to
-  const isActive = c => c.type === "C" ? !!state.formsIntro[c.item.i] : c.type === "P" ? !!state.learned["P:" + c.item.pv] : !!state.learned[c.item.i];
+  const isActive = c => c.type === "C" ? !!state.pretIntro[c.item.i] : c.type === "D" ? !!state.supIntro[c.item.i] : c.type === "P" ? !!state.learned["P:" + c.item.pv] : !!state.learned[c.item.i];
   const activeCards = () => allCards().filter(c => c.type !== "P" && isActive(c));
 
   /* ---------- mastery: one level per verb ---------- */
@@ -86,13 +88,17 @@
     return !d ? 1 : d >= 90 ? 5 : d >= 30 ? 4 : d >= 10 ? 3 : d >= 4 ? 2 : 1;
   };
   const basicsLevel = v => Math.max(state.learned[v.i] ? 1 : 0, Math.min(lvlOf("A:" + v.i), lvlOf("B:" + v.i)));
-  const formsLevel = v => Math.max(state.formsIntro[v.i] ? 1 : 0, lvlOf("C:" + v.i));
+  const pretLevel = v => Math.max(state.pretIntro[v.i] ? 1 : 0, lvlOf("C:" + v.i));
+  const supLevel = v => Math.max(state.supIntro[v.i] ? 1 : 0, lvlOf("D:" + v.i));
   const pLevel = p => Math.max(state.learned["P:" + p.pv] ? 1 : 0, lvlOf("P:" + p.pv));
-  const cardLevel = c => c.type === "C" ? formsLevel(c.item) : c.type === "P" ? pLevel(c.item) : basicsLevel(c.item);
+  const cardLevel = c => c.type === "C" ? pretLevel(c.item) : c.type === "D" ? supLevel(c.item) : c.type === "P" ? pLevel(c.item) : basicsLevel(c.item);
   const pips = l => `<span class="pips" role="img" aria-label="${LEVELS[l]}, level ${l} of 5">${[1, 2, 3, 4, 5].map(n => `<i class="${n <= l ? "on" : ""}"></i>`).join("")}</span>`;
 
   const introduced = () => VERBS.filter(v => state.learned[v.i]);
-  const eligibleForms = () => VERBS.filter(v => state.learned[v.i] && !state.formsIntro[v.i] && (state.showAll || basicsLevel(v) >= 2));
+  // Preteritum comes late (once a verb's words are Familiar); supinum later still (once its preteritum is Familiar).
+  const eligible = kind => VERBS.filter(v => kind === "pret"
+    ? state.learned[v.i] && !state.pretIntro[v.i] && (state.showAll || basicsLevel(v) >= 3)
+    : state.learned[v.i] && !state.supIntro[v.i] && (state.showAll || (state.pretIntro[v.i] && pretLevel(v) >= 3)));
   const nextBatch = () => VERBS.filter(v => !state.learned[v.i]).slice(0, BATCH);
   const pLearned = p => !!state.learned["P:" + p.pv];
 
@@ -100,11 +106,14 @@
   function unlocks() {
     const n = introduced().length, all = state.showAll;
     const solid = VERBS.filter(v => basicsLevel(v) >= 2).length;
+    const fam = VERBS.filter(v => basicsLevel(v) >= 3).length;
+    const pfam = VERBS.filter(v => pretLevel(v) >= 3).length;
     return {
-      n, solid,
+      n, solid, fam, pfam,
       practice: all || n >= 1,
       verbs: all || n >= 5,
-      forms: all || eligibleForms().length >= 3 || Object.keys(state.formsIntro).length > 0,
+      pret: all || eligible("pret").length >= 5 || Object.keys(state.pretIntro).length > 0,
+      sup: all || eligible("sup").length >= 5 || Object.keys(state.supIntro).length > 0,
       particles: all || solid >= 10 || PARTS.some(pLearned)
     };
   }
@@ -123,12 +132,12 @@
   }
 
   /* ---------- router + nav ---------- */
-  const routes = { home, learn: learnView, forms: formsView, practice: practiceSetup, particles: particleSetup, pl: plView, verbs: verbsView };
+  const routes = { home, learn: learnView, pret: () => formsView("pret"), sup: () => formsView("sup"), practice: practiceSetup, particles: particleSetup, pl: plView, verbs: verbsView };
   let session = null;
   const routeName = () => (location.hash.replace(/^#\//, "").split("/")[0]) || "home";
 
   function renderNav() {
-    const u = unlocks(), name = ({ learn: "home", forms: "home", pl: "particles" }[routeName()]) || routeName();
+    const u = unlocks(), name = ({ learn: "home", pret: "home", sup: "home", pl: "particles" }[routeName()]) || routeName();
     const items = [["home", "Home"]];
     if (u.practice) items.push(["practice", "Practice"]);
     if (u.particles) items.push(["particles", "Particle verbs"]);
@@ -150,21 +159,23 @@
   function nextStep() {
     const cards = activeCards();
     const fresh = cards.filter(isNew), due = cards.filter(isDue);
-    const elig = eligibleForms();
-    if (fresh.length) return { type: "practice", n: fresh.length, forms: fresh.every(c => c.type === "C") };
+    const eP = eligible("pret"), eS = eligible("sup");
+    if (fresh.length) return { type: "practice", n: fresh.length };
     if (due.length >= 5) return { type: "review", n: due.length };
-    if (elig.length >= 3) return { type: "forms", batch: elig.slice(0, BATCH) };
+    if (eS.length >= 5) return { type: "sup", batch: eS.slice(0, BATCH) };
+    if (eP.length >= 5) return { type: "pret", batch: eP.slice(0, BATCH) };
     const batch = nextBatch();
     if (batch.length) return { type: "learn", batch };
     if (due.length) return { type: "review", n: due.length };
-    if (elig.length) return { type: "forms", batch: elig.slice(0, BATCH) };
+    if (eS.length) return { type: "sup", batch: eS.slice(0, BATCH) };
+    if (eP.length) return { type: "pret", batch: eP.slice(0, BATCH) };
     return { type: "done" };
   }
   function guidedQueue() {
     const cards = activeCards(), fresh = cards.filter(isNew);
     return fresh.length ? shuffle(fresh).slice(0, NEW_PER_SESSION) : shuffle(cards.filter(isDue)).slice(0, 20);
   }
-  const stepAct = s => ({ learn: "learn-start", forms: "forms-start", practice: "guided-start", review: "guided-start" }[s.type]);
+  const stepAct = s => ({ learn: "learn-start", pret: "pret-start", sup: "sup-start", practice: "guided-start", review: "guided-start" }[s.type]);
   const stepButton = (s, label, cls = "primary big") => `<button class="${cls}" data-act="${stepAct(s)}">${label}</button>`;
   const wordChips = batch => `<ul class="batch-list" aria-label="Verbs in this lesson">${batch.map(v => `<li><b>${esc(v.i)}</b><span>${esc(v.en)}</span></li>`).join("")}</ul>`;
 
@@ -173,10 +184,10 @@
     if (!lesson.batch.length) { lesson.batch = null; return goto("#/home"); }
     goto("#/learn");
   }
-  function startForms() {
-    lesson.kind = "forms"; lesson.batch = eligibleForms().slice(0, BATCH); lesson.idx = 0;
+  function startForms(kind) {
+    lesson.kind = kind; lesson.batch = eligible(kind).slice(0, BATCH); lesson.idx = 0;
     if (!lesson.batch.length) { lesson.batch = null; return goto("#/home"); }
-    goto("#/forms");
+    goto("#/" + kind);
   }
   function startGuidedPractice() { startSession(guidedQueue(), "#/home", true); }
 
@@ -197,7 +208,8 @@
 
   function comingUp(u) {
     const rows = [];
-    if (!u.forms) rows.push(`<li><b>Conjugations</b> (past and perfect forms) unlock when 3 verbs reach Learning. <span class="muted">${Math.min(u.solid, 3)} of 3</span></li>`);
+    if (!u.pret) rows.push(`<li><b>Past tense</b> (preteritum, <i>jag var</i>) unlocks when 5 verbs reach Familiar. <span class="muted">${Math.min(u.fam, 5)} of 5</span></li>`);
+    else if (!u.sup) rows.push(`<li><b>Perfect</b> (supinum, <i>jag har varit</i>) unlocks when 5 verbs reach Familiar in the past tense. <span class="muted">${Math.min(u.pfam, 5)} of 5</span></li>`);
     if (!u.particles) rows.push(`<li><b>Particle verbs</b> (like <i>hålla med</i>) unlock when 10 verbs reach Learning. <span class="muted">${Math.min(u.solid, 10)} of 10</span></li>`);
     return rows.length ? `<section class="coming"><h2>Coming up</h2><ul>${rows.join("")}</ul></section>` : "";
   }
@@ -226,7 +238,8 @@
       if (step.type === "learn") card = `<h2>Learn 5 new verbs</h2><p class="muted">Meaning, infinitiv and presens, with an example sentence for each.</p>${wordChips(step.batch)}${stepButton(step, "Start lesson")}`;
       else if (step.type === "practice") card = `<h2>Practise your new verbs</h2><p class="muted">${plural(step.n, "card")} from your latest lesson.</p>${stepButton(step, "Start practice")}`;
       else if (step.type === "review") card = `<h2>Review ${plural(step.n, "card")}</h2><p class="muted">Cards return just before you would forget them.</p>${stepButton(step, "Start review")}`;
-      else if (step.type === "forms") card = `<h2>Learn the past forms of ${step.batch.length} verbs</h2><p class="muted">You know these verbs well enough. Now add preteritum (past) and supinum (perfect).</p>${wordChips(step.batch)}${stepButton(step, "Start lesson")}`;
+      else if (step.type === "pret") card = `<h2>Learn the past tense of ${step.batch.length} verbs</h2><p class="muted">You know these verbs well now. Add preteritum: <i>jag var</i>, <i>jag gjorde</i>.</p>${wordChips(step.batch)}${stepButton(step, "Start lesson")}`;
+      else if (step.type === "sup") card = `<h2>Learn the perfect of ${step.batch.length} verbs</h2><p class="muted">Add supinum, the form that follows <i>har</i>: <i>jag har varit</i>.</p>${wordChips(step.batch)}${stepButton(step, "Start lesson")}`;
       else card = `<h2>You're all caught up</h2><p class="muted">Nothing is due. Come back tomorrow, or practise freely.</p><a class="btn primary big" href="#/practice">Practise freely</a>`;
     }
 
@@ -245,22 +258,29 @@
   const lesson = { kind: "words", batch: null, idx: 0 };
 
   function learnView() { if (!lesson.batch || lesson.kind !== "words") return startLearning(); lessonCard(); }
-  function formsView() { if (!lesson.batch || lesson.kind !== "forms") return startForms(); lessonCard(); }
+  function formsView(kind) { if (!lesson.batch || lesson.kind !== kind) return startForms(kind); lessonCard(); }
 
   function lessonCard() {
-    const v = lesson.batch[lesson.idx], last = lesson.idx === lesson.batch.length - 1, words = lesson.kind === "words";
+    const v = lesson.batch[lesson.idx], last = lesson.idx === lesson.batch.length - 1, kind = lesson.kind;
     const dots = lesson.batch.map((_, k) => `<i class="${k < lesson.idx ? "done" : k === lesson.idx ? "cur" : ""}"></i>`).join("");
-    const body = words ? `
-        <div class="vhead"><div><h2>att ${esc(v.i)}</h2><p class="meaning">${esc(v.en)}</p></div>${speakBtn(v.i)}</div>
+    const head = known => `<div class="vhead"><div><h2>att ${esc(v.i)}</h2><p class="meaning">${esc(v.en)}${known ? " · you know: " + known : ""}</p></div>${speakBtn(v.i)}</div>`;
+    const irr = v.irr ? `<p class="note">Irregular verb: this form follows no pattern, so learn it by heart.</p>` : "";
+    const body = kind === "words" ? `
+        ${head("")}
         <div class="pair"><div class="t-inf"><span>Infinitiv</span><b>att ${esc(v.i)}</b></div><div class="t-pres"><span>Presens (now)</span><b>${esc(v.p)}</b></div></div>
         ${sentenceRows(v, [0, 1], true)}`
+      : kind === "pret" ? `
+        ${head(esc(v.i) + ", " + esc(v.p))}
+        <div class="pair one"><div class="t-pret"><span>Preteritum (past)</span><b>${esc(v.t)}</b></div></div>
+        ${sentenceRows(v, [2], true)}${irr}`
       : `
-        <div class="vhead"><div><h2>att ${esc(v.i)}</h2><p class="meaning">${esc(v.en)} · you know: ${esc(v.i)}, ${esc(v.p)}</p></div>${speakBtn(v.i)}</div>
-        <div class="pair"><div class="t-pret"><span>Preteritum (past)</span><b>${esc(v.t)}</b></div><div class="t-sup"><span>Supinum (perfect)</span><b>har ${esc(v.s)}</b></div></div>
-        ${sentenceRows(v, [2, 3], true)}
-        ${v.irr ? `<p class="note">Irregular verb: these forms follow no pattern, so learn them by heart.</p>` : ""}`;
+        ${head(esc(v.i) + ", " + esc(v.p) + ", " + esc(v.t))}
+        <div class="pair one"><div class="t-sup"><span>Supinum (perfect)</span><b>har ${esc(v.s)}</b></div></div>
+        ${sentenceRows(v, [3], true)}
+        <p class="note">Supinum always follows <i>har</i> (have) or <i>hade</i> (had).</p>${irr}`;
+    const title = { words: "New verbs", pret: "Past tense · preteritum", sup: "Perfect · supinum" }[kind];
     app.innerHTML = `
-      <div class="progress"><span>${words ? "New verbs" : "Past and perfect"} · ${lesson.idx + 1} of ${lesson.batch.length}</span></div>
+      <div class="progress"><span>${title} · ${lesson.idx + 1} of ${lesson.batch.length}</span></div>
       <div class="dots">${dots}</div>
       <section class="card-box lesson">${body}</section>
       <div class="nav-row">
@@ -270,10 +290,11 @@
   }
 
   function lessonFinish() {
-    const batch = lesson.batch, words = lesson.kind === "words";
-    batch.forEach(v => { (words ? state.learned : state.formsIntro)[v.i] = Date.now(); });
+    const batch = lesson.batch, kind = lesson.kind;
+    const store = { words: state.learned, pret: state.pretIntro, sup: state.supIntro }[kind];
+    batch.forEach(v => { store[v.i] = Date.now(); });
     save(); lesson.batch = null; renderNav();
-    const cards = words ? batch.flatMap(v => [mkCard("A", v), mkCard("B", v)]) : batch.map(v => mkCard("C", v));
+    const cards = kind === "words" ? batch.flatMap(v => [mkCard("A", v), mkCard("B", v)]) : batch.map(v => mkCard(kind === "pret" ? "C" : "D", v));
     startSession(shuffle(cards), "#/home", true);
   }
 
@@ -399,7 +420,7 @@
 
   function practiceSetup() {
     const u = unlocks();
-    if (!u.forms && prac.mode === "C") prac.mode = "A";
+    if ((!u.pret && prac.mode === "C") || (!u.sup && prac.mode === "D")) prac.mode = "A";
     const choice = (m, title, desc) => `<button class="choice ${prac.mode === m ? "on" : ""}" data-act="prac-mode" data-v="${m}" aria-pressed="${prac.mode === m}"><b>${title}</b><span>${desc}</span></button>`;
     const p = pool(prac), { due, fresh } = counts(p);
     const tierChips = ["all", ...tiers].map(t => `<button class="chip ${prac.tier === t ? "on" : ""}" data-act="prac-tier" data-v="${t}">${tierLabel(t)}</button>`).join("");
@@ -413,7 +434,8 @@
       <div class="choices" role="group" aria-label="Practice type">
         ${choice("A", "English to Swedish", "See the English meaning, recall the Swedish verb and its presens.")}
         ${choice("B", "Swedish to English", "See the Swedish verb, recall what it means.")}
-        ${u.forms ? choice("C", "Conjugations", "See the verb, recall its preteritum (past) and supinum (perfect).") : ""}
+        ${u.pret ? choice("C", "Past tense", "See the verb, recall its preteritum.") : ""}
+        ${u.sup ? choice("D", "Perfect", "See the verb, recall its supinum (the form after har).") : ""}
       </div>
       <section class="card-box start">
         ${empty ? `<p class="muted">${why}</p>` : `<p><b>${due}</b> to review · <b>${fresh}</b> new</p>`}
@@ -480,14 +502,21 @@
       `<div class="big">att ${esc(v.i)} ${speakBtn(v.i)}</div><div class="sub">What does it mean?</div>`,
       `<div class="big">${esc(v.en)}</div>${pres(v)}`];
     if (c.type === "C") return [
-      `<div class="big">att ${esc(v.i)} ${speakBtn(v.i)}</div><div class="sub">${esc(v.en)}</div><div class="sub ask">Past and perfect?</div>`,
-      `<div class="pair"><div class="t-pret"><span>Preteritum (past)</span><b>${esc(v.t)}</b></div><div class="t-sup"><span>Supinum (perfect)</span><b>har ${esc(v.s)}</b></div></div>
+      `<div class="big">att ${esc(v.i)} ${speakBtn(v.i)}</div><div class="sub">${esc(v.en)}</div><div class="sub ask">Past tense (preteritum)?</div>`,
+      `<div class="pair one"><div class="t-pret"><span>Preteritum (past)</span><b>${esc(v.t)}</b></div></div>
        <div class="example">${hl(v.ex[2][0])}<div class="muted small">${esc(v.ex[2][1])}</div></div>`];
+    if (c.type === "D") return [
+      `<div class="big">att ${esc(v.i)} ${speakBtn(v.i)}</div><div class="sub">${esc(v.en)}</div><div class="sub ask">Perfect (supinum)? <i>jag har …</i></div>`,
+      `<div class="pair one"><div class="t-sup"><span>Supinum (perfect)</span><b>har ${esc(v.s)}</b></div></div>
+       <div class="example">${hl(v.ex[3][0])}<div class="muted small">${esc(v.ex[3][1])}</div></div>`];
+    if (c.type === "B") return [
+      `<div class="big">att ${esc(v.i)} ${speakBtn(v.i)}</div><div class="sub">What does it mean?</div>`,
+      `<div class="big">${esc(v.en)}</div>${pres(v)}`];
     return [
       `<div class="big">${esc(v.pv)} ${speakBtn(v.pv)}</div><div class="sub">What does it mean?</div>`,
       `<div class="big">${esc(v.en)}</div><div class="example">${esc(v.sv)}<div class="muted small">${esc(v.sven)}</div></div>`];
   }
-  const sideLabel = (c, back) => c.type === "A" ? (back ? "Svenska" : "English") : c.type === "B" ? (back ? "English" : "Svenska") : c.type === "C" ? (back ? "Past and perfect" : "Svenska") : (back ? "English" : "Particle verb");
+  const sideLabel = (c, back) => c.type === "A" ? (back ? "Svenska" : "English") : c.type === "B" ? (back ? "English" : "Svenska") : c.type === "C" ? (back ? "Past tense" : "Svenska") : c.type === "D" ? (back ? "Perfect" : "Svenska") : (back ? "English" : "Particle verb");
 
   function renderSession() {
     const s = session;
@@ -545,7 +574,7 @@
     if (!s.guided) cta = `<button class="primary big" data-act="again-session">Another round</button><a class="btn" href="#/home">Home</a>`;
     else if (step.type === "done") cta = `<a class="btn primary big" href="#/home">Back to Home</a>`;
     else {
-      const label = { learn: "Next: learn 5 new verbs", forms: "Next: learn past forms", practice: "Next: practise new verbs", review: "Next: review due cards" }[step.type];
+      const label = { learn: "Next: learn 5 new verbs", pret: "Next: learn the past tense", sup: "Next: learn the perfect", practice: "Next: practise new verbs", review: "Next: review due cards" }[step.type];
       cta = `${stepButton(step, label)}<a class="btn" href="#/home">Back to Home</a>`;
     }
     app.innerHTML = `
@@ -593,14 +622,14 @@
       return !q || v.i.includes(q) || v.en.toLowerCase().includes(q) || [v.p, v.t, v.s].some(x => x.includes(q));
     });
     document.getElementById("vl").innerHTML = list.length ? `<div class="vlist">${list.map(v => {
-      const l = basicsLevel(v), fl = formsLevel(v);
+      const l = basicsLevel(v), pl2 = pretLevel(v), sl = supLevel(v);
       return `<details class="v"><summary>
         <span class="inf">${esc(v.i)}</span>
         <span class="rest">${esc(v.en)}</span>
         ${pips(l)}
       </summary><div class="body">
         <p class="forms-line"><b>att ${esc(v.i)}</b> · ${esc(v.p)} · ${esc(v.t)} · har ${esc(v.s)}${v.irr ? ` <span class="badge irr">irregular</span>` : ""}</p>
-        <p class="muted small">Words: ${LEVELS[l]} · Past and perfect: ${LEVELS[fl]}</p>
+        <p class="muted small">Words: ${LEVELS[l]} · Past: ${LEVELS[pl2]} · Perfect: ${LEVELS[sl]}</p>
         ${sentenceRows(v, [0, 1, 2, 3], true)}
       </div></details>`;
     }).join("")}</div>` : `<div class="empty">No verbs match. Try a different search or filter.</div>`;
@@ -621,7 +650,8 @@
       case "show-all-on": state.showAll = true; save(); renderNav(); return home();
       case "show-all-off": state.showAll = false; save(); renderNav(); return home();
       case "learn-start": return startLearning();
-      case "forms-start": return startForms();
+      case "pret-start": return startForms("pret");
+      case "sup-start": return startForms("sup");
       case "guided-start": return startGuidedPractice();
       case "lesson-next": lesson.idx++; return lessonCard();
       case "lesson-prev": lesson.idx--; return lessonCard();
@@ -667,7 +697,7 @@
 
   // leaving a lesson half-way discards it
   window.addEventListener("hashchange", () => {
-    if (!/^#\/(learn|forms)$/.test(location.hash)) lesson.batch = null;
+    if (!/^#\/(learn|pret|sup)$/.test(location.hash)) lesson.batch = null;
     if (location.hash !== "#/pl") pl.batch = null;
   });
 

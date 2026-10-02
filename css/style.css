@@ -316,3 +316,6 @@ details.v .body { padding: .6rem 1.2rem 1.2rem; }
 .primary.big:not(.noarrow):hover::after { transform: translateX(4px); }
 .next .big, .cta-row .primary.big { min-height: 60px; padding-left: 2.2rem; padding-right: 2.2rem; font-size: 1.2rem; }
 @media (max-width: 560px) { .cta-row .primary.big, .next .big { width: 100%; } .cta-row { flex-direction: column; } }
+
+.lesson .pair.one { max-width: none; margin: 0 0 18px; text-align: left; }
+.note i { font-style: italic; }
