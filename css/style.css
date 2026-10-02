@@ -330,3 +330,22 @@ details.v .body { padding: .6rem 1.2rem 1.2rem; }
 .stem .sbar { display: block; height: 6px; border-radius: 99px; background: var(--m0); margin: 8px 0 4px; overflow: hidden; }
 .stem .sbar u { display: block; height: 100%; background: var(--primary); text-decoration: none; border-radius: 99px; }
 .stem.done { opacity: .6; }
+
+/* ---------- level quiz ---------- */
+.opts.one { grid-template-columns: 1fr; }
+.opts.one button { font-size: 1.08rem; padding: .9rem 1.3rem; }
+.opts.one button:hover { box-shadow: inset 0 0 0 2px var(--primary); transform: none; }
+.nav-row.center { justify-content: center; }
+.nav-row.center button { flex: none; min-height: 52px; }
+.plain { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: .4rem; }
+.plain li { padding-left: 1.2rem; position: relative; }
+.plain li::before { content: ""; position: absolute; left: 0; top: .65em; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
+.level-name { font-size: clamp(3rem, 12vw, 4.5rem); color: var(--primary); margin: .1rem 0 .4rem; }
+.skill { margin-bottom: .4rem; }
+.skill .bar { margin: .3rem 0 .8rem; }
+.bar.w i { background: var(--primary); }
+.bar.t-pret i { background: var(--rose-deep); }
+.bar.t-sup i { background: var(--sky-deep); }
+.bar.part i { background: var(--lilac-deep); }
+.bar { height: 14px; background: var(--m0); border-radius: 99px; overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 99px; }

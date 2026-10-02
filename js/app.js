@@ -21,7 +21,7 @@
   /* ---------- storage ---------- */
   let state = load();
   function load() {
-    const base = { learned: {}, pretIntro: {}, supIntro: {}, cards: {}, showAll: false };
+    const base = { learned: {}, pretIntro: {}, supIntro: {}, cards: {}, showAll: false, level: null };
     let s;
     try { s = Object.assign(base, JSON.parse(localStorage.getItem(STORE) || "{}")); } catch { s = base; }
     // older saves: one "conjugation" track (formsIntro / C cards) becomes the preteritum track
@@ -132,7 +132,7 @@
   }
 
   /* ---------- router + nav ---------- */
-  const routes = { home, learn: learnView, pret: () => formsView("pret"), sup: () => formsView("sup"), practice: practiceSetup, particles: particleSetup, pl: plView, verbs: verbsView };
+  const routes = { home, learn: learnView, pret: () => formsView("pret"), sup: () => formsView("sup"), practice: practiceSetup, particles: particleSetup, pl: plView, verbs: verbsView, level: levelView };
   let session = null;
   const routeName = () => (location.hash.replace(/^#\//, "").split("/")[0]) || "home";
 
@@ -220,6 +220,7 @@
     if (u.practice) rows.push(`<li><a href="#/practice">Practise freely</a></li>`);
     if (u.particles) rows.push(`<li><button class="linklike" data-act="pl-start">Learn particle verbs${nextParticleBatch() ? ": " + esc(stemsLabel(nextParticleBatch())) : ""}</button></li>`);
     if (u.verbs) rows.push(`<li><a href="#/verbs">Browse all verbs</a></li>`);
+    rows.push(`<li><a href="#/level">${state.level ? `Your level: ${esc(LEVEL_NAMES[state.level.level + 1])}. Take the level quiz again` : "Find your level with a quiz"}</a></li>`);
     return rows.length ? `<section class="also"><h2>Also</h2><ul>${rows.join("")}</ul></section>` : "";
   }
 
@@ -246,6 +247,7 @@
     app.innerHTML = `
       <div class="hello">${intro}</div>
       <section class="card-box next" aria-label="Next step">${card}</section>
+      ${u.n === 0 ? `<p class="foot muted small" style="text-align:center">Already know some Swedish? <a href="#/level">Find your level</a> first.</p>` : ""}
       ${u.n ? levelBar() : ""}
       ${u.n ? comingUp(u) : ""}
       ${u.n ? alsoAvailable(u, step, due) : ""}
@@ -673,6 +675,189 @@
     }).join("")}</div>` : `<div class="empty">No verbs match. Try a different search or filter.</div>`;
   }
 
+  /* ---------- level quiz: separate from the learning flow, covers everything ---------- */
+  const LV = ["A1", "A2", "B1", "B2"];
+  const LEVEL_NAMES = ["Beginner", "A1", "A2", "B1", "B2"]; // index = level + 1
+  const LEVEL_TEXT = [
+    "You are at the very start. The first lesson is the right place to begin.",
+    "You know the most common verbs and the basics of their forms.",
+    "You handle everyday verbs and are getting used to past tense and perfect.",
+    "You are comfortable with most everyday verbs, their forms and common particle verbs.",
+    "You have a wide verb vocabulary and handle forms and particle verbs well."
+  ];
+  const SECTION = { words: "Word meanings", pres: "Present tense", pret: "Past tense", sup: "Perfect", part: "Particle verbs" };
+  const PLAN = [
+    ["words", { A1: 2, A2: 3, B1: 3, B2: 2 }],
+    ["pres", { A1: 1, A2: 1, B1: 1, B2: 0 }],
+    ["pret", { A1: 2, A2: 2, B1: 2, B2: 1 }],
+    ["sup", { A1: 2, A2: 2, B1: 2, B2: 1 }]
+  ];
+  const quiz = { phase: "intro", qs: [], i: 0, ans: [], applied: false, summary: null };
+  const uniq = a => [...new Set(a)];
+  const pct = (ok, n) => n ? ok / n : 0;
+  const pctText = x => Math.round(x * 100) + "%";
+
+  function wordsQ(v) {
+    const near = VERBS.filter(x => x.i !== v.i && x.en !== v.en && Math.abs(LV.indexOf(x.lvl) - LV.indexOf(v.lvl)) <= 1);
+    const opts = shuffle([v.en, ...uniq(shuffle(near).map(x => x.en)).slice(0, 3)]);
+    return { section: "words", lvl: v.lvl, title: `att ${v.i}`, sub: "What does it mean?", opts, correct: opts.indexOf(v.en) };
+  }
+  function clozeQ(v, k, section) {
+    const forms = [v.i, v.p, v.t, v.s], set = uniq(forms);
+    if (set.length < 3) return null;
+    const opts = shuffle(set);
+    return { section, lvl: v.lvl, sentence: v.ex[k][0].replace(/\*(.+?)\*/, "____").replace(/\*/g, ""), sub: v.ex[k][1], opts, correct: opts.indexOf(forms[k]) };
+  }
+  function particleQ(p) {
+    const near = PARTS.filter(x => x.pv !== p.pv && x.en !== p.en && Math.abs(x.tier - p.tier) <= 1);
+    const opts = shuffle([p.en, ...uniq(shuffle(near).map(x => x.en)).slice(0, 3)]);
+    return { section: "part", lvl: { 1: "A2", 2: "B1", 3: "B2" }[p.tier], title: p.pv, sub: "What does it mean?", opts, correct: opts.indexOf(p.en) };
+  }
+  function buildQuiz() {
+    const used = new Set(), qs = [];
+    const make = { words: wordsQ, pres: v => clozeQ(v, 1, "pres"), pret: v => clozeQ(v, 2, "pret"), sup: v => clozeQ(v, 3, "sup") };
+    for (const [sec, counts] of PLAN) {
+      for (const l of LV) {
+        let got = 0;
+        for (const v of shuffle(VERBS.filter(x => x.lvl === l && !used.has(x.i)))) {
+          if (got >= counts[l]) break;
+          const q = make[sec](v);
+          if (q) { used.add(v.i); qs.push(q); got++; }
+        }
+      }
+    }
+    [[1, 2], [2, 2], [3, 2]].forEach(([t, n]) => shuffle(PARTS.filter(p => p.tier === t)).slice(0, n).forEach(p => qs.push(particleQ(p))));
+    return qs;
+  }
+
+  function levelView() {
+    if (quiz.phase === "question") return quizQuestion();
+    if (quiz.phase === "result") return quizResult();
+    return quizIntro();
+  }
+
+  function quizIntro() {
+    const n = PLAN.reduce((t, [, c]) => t + Object.values(c).reduce((a, b) => a + b, 0), 0) + 6;
+    const count = sec => Object.values(PLAN.find(p => p[0] === sec)[1]).reduce((a, b) => a + b, 0);
+    app.innerHTML = `
+      <h1>Find your level</h1>
+      <p class="lead muted">A short quiz that places you between Beginner and B2. It is separate from the lessons and changes nothing until you choose to apply the result.</p>
+      <section class="card-box">
+        <h2>${n} questions, about 6 minutes</h2>
+        <ul class="plain">
+          <li><b>${count("words")}</b> on word meanings</li>
+          <li><b>${count("pres")}</b> on the present tense (presens)</li>
+          <li><b>${count("pret")}</b> on the past tense (preteritum)</li>
+          <li><b>${count("sup")}</b> on the perfect (supinum)</li>
+          <li><b>6</b> on particle verbs</li>
+        </ul>
+        <p class="note">Choose "I don't know" instead of guessing. It gives a more accurate result.</p>
+        <div class="cta-row" style="justify-content:flex-start"><button class="primary big" data-act="quiz-start">Start the quiz</button></div>
+      </section>`;
+  }
+
+  function quizQuestion() {
+    const q = quiz.qs[quiz.i], n = quiz.qs.length;
+    const body = q.sentence
+      ? `<p class="muted">Which form fits the gap?</p><div class="big-q">${esc(q.sentence)}</div><p class="muted">${esc(q.sub)}</p>`
+      : `<div class="big-q">${esc(q.title)}</div><p class="muted">${esc(q.sub)}</p>`;
+    app.innerHTML = `
+      <div class="progress"><span>${SECTION[q.section]} · ${quiz.i + 1} of ${n}</span><a href="#/home">Stop</a></div>
+      <div class="dots"><i class="done" style="flex:${quiz.i}"></i><i style="flex:${n - quiz.i}"></i></div>
+      <section class="card-box">
+        ${body}
+        <div class="opts one" role="group" aria-label="Answers">${q.opts.map((o, k) => `<button data-act="quiz-ans" data-v="${k}">${esc(o)}</button>`).join("")}</div>
+      </section>
+      <div class="nav-row center"><button data-act="quiz-ans" data-v="-1">I don't know</button></div>`;
+  }
+
+  function quizScore() {
+    const band = {}, sec = {};
+    LV.forEach(l => { band[l] = { ok: 0, n: 0 }; });
+    ["words", "pres", "pret", "sup", "part"].forEach(s => { sec[s] = { ok: 0, n: 0 }; });
+    quiz.qs.forEach((q, i) => {
+      const ok = quiz.ans[i] === q.correct ? 1 : 0;
+      sec[q.section].n++; sec[q.section].ok += ok;
+      if (q.section !== "part") { band[q.lvl].n++; band[q.lvl].ok += ok; }
+    });
+    let level = -1;
+    for (let i = 0; i < LV.length; i++) { const b = band[LV[i]]; if (pct(b.ok, b.n) >= 0.6) level = i; else break; }
+    const skills = {
+      words: pct(sec.words.ok + sec.pres.ok, sec.words.n + sec.pres.n),
+      pret: pct(sec.pret.ok, sec.pret.n), sup: pct(sec.sup.ok, sec.sup.n), part: pct(sec.part.ok, sec.part.n)
+    };
+    return { level, skills };
+  }
+
+  // What "start from my level" would mark as already learned. Only bands strictly below the level, so nothing is overclaimed.
+  function applyPlan(r) {
+    const verbs = VERBS.filter(v => LV.indexOf(v.lvl) < r.level);
+    const pretOK = verbs.length > 0 && r.skills.pret >= 0.6;
+    const supOK = pretOK && r.skills.sup >= 0.6;
+    const parts = r.skills.part >= 0.5 ? PARTS.filter(p => p.tier === 1) : [];
+    return { verbs, pretOK, supOK, parts };
+  }
+
+  function applyLevelResult() {
+    const r = quizScore(), plan = applyPlan(r), now = Date.now(), day = 864e5;
+    const give = (key, interval, reps) => { if (!state.cards[key]) state.cards[key] = { ease: 2.5, interval, reps, due: now + Math.ceil(Math.random() * interval) * day }; };
+    plan.verbs.forEach(v => {
+      if (!state.learned[v.i]) state.learned[v.i] = now;
+      give("A:" + v.i, 10, 3); give("B:" + v.i, 10, 3);
+      if (plan.pretOK) { state.pretIntro[v.i] = state.pretIntro[v.i] || now; give("C:" + v.i, 4, 2); }
+      if (plan.supOK) { state.supIntro[v.i] = state.supIntro[v.i] || now; give("D:" + v.i, 4, 2); }
+    });
+    plan.parts.forEach(p => { state.learned["P:" + p.pv] = state.learned["P:" + p.pv] || now; give("P:" + p.pv, 4, 2); });
+    save(); renderNav();
+    quiz.applied = true;
+    quiz.summary = `${plural(plan.verbs.length, "verb")}${plan.parts.length ? ` and ${plural(plan.parts.length, "particle verb")}` : ""} marked as learned. They will come back as reviews over the next weeks.`;
+  }
+
+  function quizResult() {
+    const r = quizScore(), name = LEVEL_NAMES[r.level + 1], plan = applyPlan(r);
+    const bar = (label, v, cls) => `<div class="skill"><div class="row between"><span>${label}</span><b>${pctText(v)}</b></div><div class="bar ${cls}"><i style="width:${Math.round(v * 100)}%"></i></div></div>`;
+    const lines = [];
+    if (plan.verbs.length) lines.push(`Words for <b>${plural(plan.verbs.length, "verb")}</b> (levels below ${name})`);
+    if (plan.pretOK) lines.push("Their past tense (preteritum)");
+    if (plan.supOK) lines.push("Their perfect (supinum)");
+    if (plan.parts.length) lines.push(`<b>${plural(plan.parts.length, "common particle verb")}</b>`);
+    const apply = quiz.applied
+      ? `<h2>Done</h2><p>${quiz.summary}</p><div class="cta-row" style="justify-content:flex-start"><a class="btn primary big" href="#/home">Go to Home</a></div>`
+      : lines.length
+        ? `<h2>Start from my level</h2>
+           <p class="muted">We can mark what you likely know as already learned, so lessons begin where you are. Only levels <i>below</i> ${name} are marked, and they return as reviews so you can correct us.</p>
+           <ul class="plain">${lines.map(l => `<li>${l}</li>`).join("")}</ul>
+           <div class="cta-row" style="justify-content:flex-start"><button class="primary big" data-act="quiz-apply">Set up my progress</button><a class="btn" href="#/home">Not now</a></div>`
+        : `<h2>Start from the beginning</h2><p class="muted">There is nothing to mark yet. The first lesson is the right place to begin.</p>
+           <div class="cta-row" style="justify-content:flex-start"><a class="btn primary big" href="#/home">Go to Home</a></div>`;
+    app.innerHTML = `
+      <section class="card-box done-card">${burst()}
+        <p class="muted">Your estimated level</p>
+        <h1 class="level-name">${name}</h1>
+        <p>${LEVEL_TEXT[r.level + 1]}</p>
+      </section>
+      <section class="card-box">
+        <h2>How you did</h2>
+        ${bar("Word meanings and present tense", r.skills.words, "w")}
+        ${bar("Past tense (preteritum)", r.skills.pret, "t-pret")}
+        ${bar("Perfect (supinum)", r.skills.sup, "t-sup")}
+        ${bar("Particle verbs", r.skills.part, "part")}
+        <p class="muted small">A short quiz gives an estimate, not a certificate.</p>
+      </section>
+      <section class="card-box">${apply}</section>
+      <p class="foot muted small"><button class="linklike" data-act="quiz-retake">Take the quiz again</button></p>`;
+  }
+
+  function quizAnswer(k) {
+    quiz.ans.push(k);
+    if (quiz.i + 1 < quiz.qs.length) { quiz.i++; return quizQuestion(); }
+    quiz.phase = "result";
+    const r = quizScore();
+    state.level = { level: r.level, date: Date.now(), skills: r.skills };
+    save();
+    return quizResult();
+  }
+
   /* ---------- events ---------- */
   app.addEventListener("click", e => {
     const el = e.target.closest("[data-act]");
@@ -714,6 +899,10 @@
       case "end": e.preventDefault(); return goto(session ? session.back : "#/home");
       case "again-session": return startSession(buildQueue(session.opts), session.back, false, "verb", session.opts);
       case "list-filter": vlist.filter = v; return verbsView();
+      case "quiz-start": quiz.qs = buildQuiz(); quiz.i = 0; quiz.ans = []; quiz.applied = false; quiz.phase = "question"; return quizQuestion();
+      case "quiz-ans": return quizAnswer(+v);
+      case "quiz-apply": applyLevelResult(); return quizResult();
+      case "quiz-retake": quiz.phase = "intro"; quiz.qs = []; return quizIntro();
     }
   });
   app.addEventListener("change", e => {
@@ -729,6 +918,10 @@
       const go = app.querySelector(".nav-row .primary:not(:disabled), .cta-row .primary");
       if (go) { e.preventDefault(); go.click(); return; }
     }
+    if (!session && quiz.phase === "question" && location.hash === "#/level" && /^[0-4]$/.test(e.key)) {
+      const k = e.key === "0" ? -1 : +e.key - 1;
+      if (k < quiz.qs[quiz.i].opts.length) { e.preventDefault(); return quizAnswer(k); }
+    }
     if (!session || session.i >= session.queue.length || e.target.closest("input, summary")) return;
     if (!session.flipped && (e.key === " " || e.key === "Enter") && !e.target.closest("a, button.icon-btn")) { e.preventDefault(); reveal(); }
     else if (session.flipped && "123".includes(e.key) && e.key.length === 1) rate(["again", "good", "easy"][+e.key - 1]);
@@ -738,6 +931,7 @@
   window.addEventListener("hashchange", () => {
     if (!/^#\/(learn|pret|sup)$/.test(location.hash)) lesson.batch = null;
     if (location.hash !== "#/pl") pl.batch = null;
+    if (location.hash !== "#/level") { quiz.phase = "intro"; quiz.qs = []; }
   });
 
   route();

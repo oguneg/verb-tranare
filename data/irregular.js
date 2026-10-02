@@ -15,7 +15,9 @@
     "driva", "ingå", "vika", "tiga", "skina", "föreslå", "delta", "leda", "svälja",
     "bedra", "brista", "dölja", "flyta", "glida", "kliva", "spinna", "sprida", "stryka", "suga", "svika", "förlåta",
     "ingripa", "framstå", "överdriva", "avstå", "undgå", "umgås", "utgå", "utgöra", "anse", "inbjuda", "bortse",
-    "förekomma", "framgå", "genomgå", "påstå", "uppehålla", "be", "anta", "sy"
+    "förekomma", "framgå", "genomgå", "påstå", "uppehålla", "be", "anta", "sy",
+    "duga", "förbinda", "tillgripa", "avge", "avgå", "överge", "omge", "omkomma", "utse", "vidta", "återge", "inleda",
+    "smyga", "klyva", "sjuda", "glädja", "stinka", "strida", "pipa", "ryka", "gnida", "svälta", "bränna", "dammsuga"
   ];
   const set = new Set(IRREGULAR);
   window.VERBS.forEach(v => { v.irr = set.has(v.i); });

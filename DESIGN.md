@@ -19,3 +19,6 @@ Familjen Grotesk (display, big verb forms) and Figtree (body). Sentence-case lab
 
 ## Motion
 Exponential ease-out only. One staggered rise on route change, 3D card flip, a small burst on finishing a session. All disabled under `prefers-reduced-motion`.
+
+## Level quiz (separate surface)
+`#/level`. Standalone: intro, 33 single-answer questions with no feedback, results. Not in the nav; linked from Home. One question per screen, four stacked options plus a quiet "I don't know". Results: large indigo level name, skill bars (words indigo, past rose, perfect sky, particle lilac), and one optional action, "Set up my progress", that only marks levels below the estimate.
