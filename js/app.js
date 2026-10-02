@@ -252,8 +252,8 @@
     const dots = lesson.batch.map((_, k) => `<i class="${k < lesson.idx ? "done" : k === lesson.idx ? "cur" : ""}"></i>`).join("");
     const body = words ? `
         <div class="vhead"><div><h2>att ${esc(v.i)}</h2><p class="meaning">${esc(v.en)}</p></div>${speakBtn(v.i)}</div>
-        <div class="pair"><div><span>Infinitiv</span><b>att ${esc(v.i)}</b></div><div><span>Presens (now)</span><b>${esc(v.p)}</b></div></div>
-        ${sentenceRows(v, [0, 1], false)}`
+        <div class="pair"><div class="t-inf"><span>Infinitiv</span><b>att ${esc(v.i)}</b></div><div class="t-pres"><span>Presens (now)</span><b>${esc(v.p)}</b></div></div>
+        ${sentenceRows(v, [0, 1], true)}`
       : `
         <div class="vhead"><div><h2>att ${esc(v.i)}</h2><p class="meaning">${esc(v.en)} · you know: ${esc(v.i)}, ${esc(v.p)}</p></div>${speakBtn(v.i)}</div>
         <div class="pair"><div class="t-pret"><span>Preteritum (past)</span><b>${esc(v.t)}</b></div><div class="t-sup"><span>Supinum (perfect)</span><b>har ${esc(v.s)}</b></div></div>
@@ -470,7 +470,7 @@
     renderSession();
   }
 
-  const pres = v => `<div class="sub">presens: <b>${esc(v.p)}</b></div>`;
+  const pres = v => `<div class="pair one"><div class="t-pres"><span>Presens (now)</span><b>${esc(v.p)}</b></div></div>`;
   function faces(c) {
     const v = c.item;
     if (c.type === "A") return [
@@ -504,7 +504,7 @@
         </div>
       </div>
       <div class="actions">
-        <div class="show ${s.flipped ? "hide" : ""}"><button class="primary big" data-act="reveal">Show answer</button></div>
+        <div class="show ${s.flipped ? "hide" : ""}"><button class="primary big noarrow" data-act="reveal">Show answer</button></div>
         <div class="rate ${s.flipped ? "" : "hide"}">
           <p class="hint">Did you know it?</p>
           <div class="rate-row">
@@ -656,6 +656,10 @@
     if (e.target.id === "q") { vlist.q = e.target.value; renderVlist(); }
   });
   document.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !session && !e.target.closest("input, summary, a, button, details")) {
+      const go = app.querySelector(".nav-row .primary:not(:disabled), .cta-row .primary");
+      if (go) { e.preventDefault(); go.click(); return; }
+    }
     if (!session || session.i >= session.queue.length || e.target.closest("input, summary")) return;
     if (!session.flipped && (e.key === " " || e.key === "Enter") && !e.target.closest("a, button.icon-btn")) { e.preventDefault(); reveal(); }
     else if (session.flipped && "123".includes(e.key) && e.key.length === 1) rate(["again", "good", "easy"][+e.key - 1]);

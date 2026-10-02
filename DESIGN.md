@@ -9,7 +9,7 @@ Verbträning is a street of painted Swedish timber houses, kept calm. One accent
 - Mastery, not known/unknown: every verb has a level (Not started, Started, Learning, Familiar, Strong, Mastered) derived from its card intervals (4, 10, 30, 90 days). Words and conjugations are tracked separately.
 
 ## Colour
-Neutral ground, white surfaces, indigo `--primary` and its tint `--tint`. Mastery uses one hue light to dark (`--m0` to `--m5`). Tense paints (`.t-inf` sage, `.t-pres` butter, `.t-pret` rose, `.t-sup` sky) appear only on conjugation tiles and sentence rows. Dark mode is a night street with the same structure.
+Neutral ground, white surfaces, indigo `--primary` and its tint `--tint`. Mastery uses one hue light to dark (`--m0` to `--m5`). Tense paints (`.t-inf` sage, `.t-pres` butter, `.t-pret` rose, `.t-sup` sky) colour every form tile and sentence row, in lessons and on card backs. The primary action (Next, Continue, Show answer) is pinned to the bottom of the screen as a large indigo button with an arrow; Enter triggers it. Dark mode is a night street with the same structure.
 
 ## Type
 Familjen Grotesk (display, big verb forms) and Figtree (body). Sentence-case labels. Swedish terms always carry an English gloss on first sight: Preteritum (past), Supinum (perfect).
