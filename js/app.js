@@ -329,11 +329,25 @@
   }
   const stemsLabel = b => [...new Set(b.map(p => stemOf(p.pv)))].join(" + ");
 
-  const pl = { batch: null, idx: 0, phase: "study", opts: [], order: [], qi: 0, wrong: [], solved: false, firstTry: 0 };
+  const pl = { stem: null, batch: null, idx: 0, phase: "study", opts: [], order: [], qi: 0, wrong: [], solved: false, firstTry: 0 };
 
-  function startParticleLearning() {
-    pl.batch = nextParticleBatch();
-    if (!pl.batch) return goto("#/particles");
+  // Stems with at least 2 particle verbs get their own group; the rest are pooled as "other".
+  const OTHER = "*other*";
+  function stemGroups() {
+    const m = {};
+    PARTS.forEach(p => (m[stemOf(p.pv)] = m[stemOf(p.pv)] || []).push(p));
+    const main = Object.entries(m).filter(([, l]) => l.length >= 2).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], "sv"));
+    const other = Object.values(m).filter(l => l.length < 2).flat();
+    return { main, other };
+  }
+  const stemList = stem => stem === OTHER ? stemGroups().other : PARTS.filter(p => stemOf(p.pv) === stem);
+  const stemTodo = stem => stemList(stem).filter(p => !pLearned(p));
+  const stemName = stem => stem === OTHER ? "other verbs" : stem;
+
+  function startParticleLearning(stem) {
+    pl.stem = stem || null;
+    pl.batch = stem ? stemTodo(stem).slice(0, BATCH) : nextParticleBatch();
+    if (!pl.batch || !pl.batch.length) return goto("#/particles");
     Object.assign(pl, { idx: 0, phase: "study", opts: shuffle(pl.batch), order: shuffle(pl.batch), qi: 0, wrong: [], solved: false, firstTry: 0 });
     goto("#/pl");
   }
@@ -391,10 +405,11 @@
   }
 
   function plFinish() {
-    const b = pl.batch;
+    const b = pl.batch, stem = pl.stem;
     b.forEach(p => { state.learned[pKey(p)] = Date.now(); });
     save(); pl.batch = null; renderNav();
     startSession(shuffle(b.map(p => ({ key: "P:" + p.pv, type: "P", tier: p.tier, group: p.g, item: p }))), "#/home", true, "particle");
+    if (session) session.stem = stem;
   }
 
   /* ---------- free practice ---------- */
@@ -452,6 +467,14 @@
   }
 
   /* ---------- particle verbs page ---------- */
+  function stemChip(stem, label, sub, list) {
+    const done = list.filter(pLearned).length, left = list.length - done;
+    return `<button class="stem ${left ? "" : "done"}" data-act="pl-stem" data-v="${esc(stem)}" ${left ? "" : "disabled"}>
+      <b>${esc(label)}</b><span>${esc(sub)}</span>
+      <i class="sbar"><u style="width:${done / list.length * 100}%"></u></i>
+      <small>${left ? `${done} of ${list.length} learned` : "All learned"}</small></button>`;
+  }
+
   function particleSetup() {
     const o = { ...pprac, mode: "P" };
     const groups = [...new Set(PARTS.map(p => p.g))];
@@ -461,13 +484,23 @@
     const p = pool(o), { due, fresh } = counts(p);
     const learnedN = PARTS.filter(pLearned).length, nb = nextParticleBatch();
     const shown = PARTS.filter(x => (pprac.group === "all" || x.g === pprac.group));
+    const { main, other } = stemGroups();
+    const chipFor = ([stem, list]) => stemChip(stem, stem, list[0].forms[0].split(" ")[0], list);
+    const topStems = main.slice(0, 12).map(chipFor).join("");
+    const moreStems = main.slice(12).map(chipFor).join("") + (other.length ? stemChip(OTHER, "Other verbs", "mixed stems", other) : "");
     app.innerHTML = `
       <h1>Particle verbs</h1>
-      <p class="lead muted">A particle changes what the verb means: <i>hålla</i> is "to hold", <i>hålla med</i> is "to agree".</p>
+      <p class="lead muted">A particle changes what the verb means: <i>hålla</i> is "to hold", <i>hålla med</i> is "to agree". ${learnedN} of ${PARTS.length} learned.</p>
       <section class="card-box next">
-        <h2>${nb ? "Learn a new group" : "All groups learned"}</h2>
+        <h2>${nb ? "Suggested next group" : "All groups learned"}</h2>
         ${nb ? `<p class="muted">Verbs that share a stem, so you see the pattern: <b>${esc(stemsLabel(nb))}</b>.</p>${wordChips(nb.map(x => ({ i: x.pv, en: x.en })))}<button class="primary big" data-act="pl-start">Start group</button>`
-             : `<p class="muted">${learnedN} of ${PARTS.length} learned. Keep them fresh below.</p>`}
+             : `<p class="muted">Keep them fresh with practice below.</p>`}
+      </section>
+      <section class="card-box">
+        <h2>Or choose a verb</h2>
+        <p class="muted">Learn every particle verb for one stem, five at a time.</p>
+        <div class="stems">${topStems}</div>
+        ${moreStems ? `<details class="more"><summary>${main.length - 12} more verbs</summary><div class="stems">${moreStems}</div></details>` : ""}
       </section>
       <section class="card-box start">
         <h2>Practise</h2>
@@ -586,15 +619,20 @@
   }
 
   function particleDone() {
-    const s = session, nb = nextParticleBatch();
+    const s = session, nb = nextParticleBatch(), more = s.stem ? stemTodo(s.stem) : [];
+    const line = more.length ? `<p>${plural(more.length, "verb")} left with <b>${esc(stemName(s.stem))}</b>.</p>`
+      : nb ? `<p>Next group: <b>${esc(stemsLabel(nb))}</b></p>` : `<p>You've learned every particle verb.</p>`;
+    const main = more.length ? `<button class="primary big" data-act="pl-stem" data-v="${esc(s.stem)}">Keep going with ${esc(stemName(s.stem))}</button>`
+      : nb ? `<button class="primary big" data-act="pl-start">Learn next group</button>` : "";
     app.innerHTML = `
       <section class="card-box done-card">${burst()}
         <h2>Group complete</h2>
         <p class="muted">${plural(s.total, "particle verb")} practised.</p>
-        ${nb ? `<p>Next group: <b>${esc(stemsLabel(nb))}</b></p>` : `<p>You've learned every particle verb.</p>`}
+        ${line}
         <div class="cta-row">
-          ${nb ? `<button class="primary big" data-act="pl-start">Learn next group</button>` : ""}
-          <a class="btn ${nb ? "" : "primary big"}" href="#/home">Back to Home</a>
+          ${main}
+          <a class="btn" href="#/particles">Choose another verb</a>
+          <a class="btn" href="#/home">Back to Home</a>
         </div>
       </section>`;
   }
@@ -657,6 +695,7 @@
       case "lesson-prev": lesson.idx--; return lessonCard();
       case "lesson-finish": return lessonFinish();
       case "pl-start": return startParticleLearning();
+      case "pl-stem": return startParticleLearning(v);
       case "pl-next": pl.idx++; return plStudy();
       case "pl-prev": pl.idx--; return plStudy();
       case "pl-quiz": pl.phase = "quiz"; return plQuiz();
