@@ -141,7 +141,7 @@
     const items = [["home", "Home"]];
     if (u.practice) items.push(["practice", "Practice"]);
     if (u.particles) items.push(["particles", "Particle verbs"]);
-    if (u.verbs) items.push(["verbs", "All verbs"]);
+    items.push(["verbs", "Dictionary"]);
     navEl.innerHTML = items.length < 2 ? "" : items.map(([r, t]) => `<a href="#/${r}" class="${r === name ? "active" : ""}" ${r === name ? 'aria-current="page"' : ""}>${t}</a>`).join("");
   }
 
@@ -219,7 +219,7 @@
     if (due && step.type !== "review") rows.push(`<li><button class="linklike" data-act="guided-start">Review ${plural(due, "due card")}</button></li>`);
     if (u.practice) rows.push(`<li><a href="#/practice">Practise freely</a></li>`);
     if (u.particles) rows.push(`<li><button class="linklike" data-act="pl-start">Learn particle verbs${nextParticleBatch() ? ": " + esc(stemsLabel(nextParticleBatch())) : ""}</button></li>`);
-    if (u.verbs) rows.push(`<li><a href="#/verbs">Browse all verbs</a></li>`);
+    rows.push(`<li><a href="#/verbs">Search the dictionary</a></li>`);
     rows.push(`<li><a href="#/level">${state.level ? `Your level: ${esc(LEVEL_NAMES[state.level.level + 1])}. Take the level quiz again` : "Find your level with a quiz"}</a></li>`);
     return rows.length ? `<section class="also"><h2>Also</h2><ul>${rows.join("")}</ul></section>` : "";
   }
@@ -639,40 +639,87 @@
       </section>`;
   }
 
-  /* ---------- all verbs ---------- */
-  const vlist = { q: "", filter: "all" };
-  const FILTERS = [["all", "All"], ["new", "Not started"], ["progress", "In progress"], ["mastered", "Mastered"], ["irr", "Irregular"]];
+  /* ---------- dictionary: curated verbs + lexicon + particle verbs ---------- */
+  const fold = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const FORM_NAMES = ["", "presens", "preteritum", "supinum"];
+  const vlist = { q: "", filter: "all", shown: 50 };
+  const FILTERS = [["all", "All"], ["verbs", "Verbs"], ["part", "Particle verbs"], ["irr", "Irregular"], ["mine", "In my lessons"]];
+  let dict = null;
+
+  function buildDict() {
+    const rows = [];
+    VERBS.forEach(v => rows.push({ kind: "verb", v, inf: v.i, en: v.en, forms: [v.i, v.p, v.t, v.s], irr: !!v.irr }));
+    (window.LEX || []).forEach(v => rows.push({ kind: "lex", v, inf: v.i, en: v.en, forms: [v.i, v.p, v.t, v.s], irr: !!v.irr }));
+    PARTS.forEach(p => rows.push({ kind: "part", p, inf: p.pv, en: p.en, forms: [p.pv, ...p.forms], irr: false }));
+    rows.forEach((r, n) => { r.n = n; r.fi = fold(r.inf); r.ff = r.forms.map(fold); r.fe = fold(r.en); });
+    return rows;
+  }
+
+  // lower is better; -1 means no match
+  function dictScore(r, q, wordRe) {
+    if (r.fi === q) return 0;
+    if (r.fi.startsWith(q)) return 1;
+    for (let k = 1; k < r.ff.length; k++) if (r.ff[k] === q) return 2;
+    if (wordRe.test(r.fe)) return 3;
+    if (r.fi.includes(q)) return 4;
+    if (r.ff.some(f => f.includes(q))) return 5;
+    if (r.fe.includes(q)) return 6;
+    return -1;
+  }
+  const dictPass = (r, f) => f === "all" || (f === "verbs" && r.kind !== "part") || (f === "part" && r.kind === "part") || (f === "irr" && r.irr)
+    || (f === "mine" && (r.kind === "verb" ? !!state.learned[r.v.i] : r.kind === "part" && !!state.learned["P:" + r.p.pv]));
+
+  function dictRow(r, score) {
+    const level = r.kind === "verb" ? basicsLevel(r.v) : r.kind === "part" ? pLevel(r.p) : 0;
+    const tag = r.kind === "part" ? `<span class="tag">particle verb</span>` : "";
+    const irr = r.irr ? `<span class="badge irr">irregular</span>` : "";
+    let body;
+    if (r.kind === "part") {
+      body = `<p class="forms-line"><b>${esc(r.p.pv)}</b> · ${r.p.forms.map(esc).join(" · ")}</p>
+        <div class="tense"><div class="lab">Example</div><div class="sv">${esc(r.p.sv)}</div>${speakBtn(r.p.sv)}<div class="en">${esc(r.p.sven)}</div></div>`;
+    } else {
+      body = `<p class="forms-line"><b>att ${esc(r.v.i)}</b> · ${esc(r.v.p)} · ${esc(r.v.t)} · har ${esc(r.v.s)} ${irr}</p>
+        ${r.kind === "verb" ? `${basicsLevel(r.v) ? `<p class="muted small">Words: ${LEVELS[basicsLevel(r.v)]} · Past: ${LEVELS[pretLevel(r.v)]} · Perfect: ${LEVELS[supLevel(r.v)]}</p>` : ""}${sentenceRows(r.v, [0, 1, 2, 3], true)}`
+          : `<p class="muted small">Dictionary entry. The most common verbs also have example sentences and lessons.</p>`}`;
+    }
+    const via = score === 2 ? (() => { const k = r.ff.findIndex((f, i) => i > 0 && f === fold(vlist.q.trim())); return k > 0 ? `<p class="via">“${esc(r.forms[k])}” is the <b>${FORM_NAMES[Math.min(k, 3)] || "form"}</b> of <b>${esc(r.inf)}</b></p>` : ""; })() : "";
+    return `<details class="v"><summary>
+        <span class="inf">${esc(r.inf)}</span><span class="rest">${esc(r.en)}</span>${tag}${irr && r.kind !== "part" ? "" : ""}${level ? pips(level) : ""}
+      </summary><div class="body">${via}${body}</div></details>`;
+  }
+
   function verbsView() {
     const chips = FILTERS.map(([f, t]) => `<button class="chip ${vlist.filter === f ? "on" : ""}" data-act="list-filter" data-v="${f}">${t}</button>`).join("");
     app.innerHTML = `
-      <h1>All verbs</h1>
-      <input type="search" id="q" placeholder="Search Swedish or English" value="${esc(vlist.q)}" aria-label="Search verbs">
+      <h1>Dictionary</h1>
+      <input type="search" id="q" placeholder="Search a verb, a form (gick) or an English word" value="${esc(vlist.q)}" aria-label="Search the dictionary" autocomplete="off" autocapitalize="off" spellcheck="false">
       <div class="groups" style="margin-top:12px">${chips}</div>
       <div id="vl" aria-live="polite"></div>`;
     renderVlist();
+    const input = document.getElementById("q");
+    if (window.matchMedia && matchMedia("(hover: hover)").matches) input.focus({ preventScroll: true });
   }
+
   function renderVlist() {
-    const q = vlist.q.trim().toLowerCase(), f = vlist.filter;
-    const list = VERBS.filter(v => {
-      const l = basicsLevel(v);
-      if (f === "new" && l !== 0) return false;
-      if (f === "progress" && (l < 1 || l > 4)) return false;
-      if (f === "mastered" && l !== 5) return false;
-      if (f === "irr" && !v.irr) return false;
-      return !q || v.i.includes(q) || v.en.toLowerCase().includes(q) || [v.p, v.t, v.s].some(x => x.includes(q));
-    });
-    document.getElementById("vl").innerHTML = list.length ? `<div class="vlist">${list.map(v => {
-      const l = basicsLevel(v), pl2 = pretLevel(v), sl = supLevel(v);
-      return `<details class="v"><summary>
-        <span class="inf">${esc(v.i)}</span>
-        <span class="rest">${esc(v.en)}</span>
-        ${pips(l)}
-      </summary><div class="body">
-        <p class="forms-line"><b>att ${esc(v.i)}</b> · ${esc(v.p)} · ${esc(v.t)} · har ${esc(v.s)}${v.irr ? ` <span class="badge irr">irregular</span>` : ""}</p>
-        <p class="muted small">Words: ${LEVELS[l]} · Past: ${LEVELS[pl2]} · Perfect: ${LEVELS[sl]}</p>
-        ${sentenceRows(v, [0, 1, 2, 3], true)}
-      </div></details>`;
-    }).join("")}</div>` : `<div class="empty">No verbs match. Try a different search or filter.</div>`;
+    dict = dict || buildDict();
+    const q = fold(vlist.q.trim()), f = vlist.filter, el = document.getElementById("vl");
+    let rows;
+    if (q) {
+      const wordRe = new RegExp("(^|[ ,;()])" + escRe(q));
+      rows = [];
+      for (const r of dict) { if (!dictPass(r, f)) continue; const sc = dictScore(r, q, wordRe); if (sc >= 0) rows.push([sc, r]); }
+      const order = { verb: 0, lex: 1, part: 2 };
+      rows.sort((a, b) => a[0] - b[0] || order[a[1].kind] - order[b[1].kind] || a[1].inf.length - b[1].inf.length || a[1].n - b[1].n);
+    } else {
+      rows = dict.filter(r => dictPass(r, f)).map(r => [-1, r]);
+    }
+    const total = rows.length, shown = rows.slice(0, vlist.shown);
+    el.innerHTML = total
+      ? `<p class="muted small count">${total.toLocaleString("en")} ${total === 1 ? "entry" : "entries"}${q ? "" : ` in the dictionary`}</p>
+         <div class="vlist">${shown.map(([sc, r]) => dictRow(r, sc)).join("")}</div>
+         ${total > shown.length ? `<div class="cta-row"><button data-act="dict-more">Show ${Math.min(50, total - shown.length)} more (${(total - shown.length).toLocaleString("en")} left)</button></div>` : ""}`
+      : `<div class="empty">Nothing found for “${esc(vlist.q)}”. Try the infinitiv, a different form, or an English word.</div>`;
   }
 
   /* ---------- level quiz: separate from the learning flow, covers everything ---------- */
@@ -898,7 +945,8 @@
       case "part-start": return startSession(buildQueue({ ...pprac, mode: "P" }), location.hash, false, "verb", { ...pprac, mode: "P" });
       case "end": e.preventDefault(); return goto(session ? session.back : "#/home");
       case "again-session": return startSession(buildQueue(session.opts), session.back, false, "verb", session.opts);
-      case "list-filter": vlist.filter = v; return verbsView();
+      case "list-filter": vlist.filter = v; vlist.shown = 50; return verbsView();
+      case "dict-more": vlist.shown += 50; return renderVlist();
       case "quiz-start": quiz.qs = buildQuiz(); quiz.i = 0; quiz.ans = []; quiz.applied = false; quiz.phase = "question"; return quizQuestion();
       case "quiz-ans": return quizAnswer(+v);
       case "quiz-apply": applyLevelResult(); return quizResult();
@@ -911,13 +959,14 @@
     if (act === "prac-unlearned") { prac.unlearned = e.target.checked; practiceSetup(); }
   });
   app.addEventListener("input", e => {
-    if (e.target.id === "q") { vlist.q = e.target.value; renderVlist(); }
+    if (e.target.id === "q") { vlist.q = e.target.value; vlist.shown = 50; renderVlist(); }
   });
   document.addEventListener("keydown", e => {
     if (e.key === "Enter" && !session && !e.target.closest("input, summary, a, button, details")) {
       const go = app.querySelector(".nav-row .primary:not(:disabled), .cta-row .primary");
       if (go) { e.preventDefault(); go.click(); return; }
     }
+    if (e.key === "/" && routeName() === "verbs" && !e.target.closest("input, textarea")) { e.preventDefault(); const i = document.getElementById("q"); if (i) { i.focus(); i.select(); } return; }
     if (!session && quiz.phase === "question" && location.hash === "#/level" && /^[0-4]$/.test(e.key)) {
       const k = e.key === "0" ? -1 : +e.key - 1;
       if (k < quiz.qs[quiz.i].opts.length) { e.preventDefault(); return quizAnswer(k); }

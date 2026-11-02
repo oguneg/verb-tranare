@@ -349,3 +349,9 @@ details.v .body { padding: .6rem 1.2rem 1.2rem; }
 .bar.part i { background: var(--lilac-deep); }
 .bar { height: 14px; background: var(--m0); border-radius: 99px; overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 99px; }
+
+/* ---------- dictionary ---------- */
+.count { margin: 4px 0 6px; }
+.tag { font-size: .75rem; font-weight: 600; padding: .05rem .55rem; border-radius: 999px; background: var(--tint); color: var(--ink-soft); white-space: nowrap; }
+.via { margin: 0 0 .6rem; padding: .5rem .8rem; border-radius: var(--r-md); background: var(--butter); color: var(--ink); }
+details.v summary { flex-wrap: wrap; }

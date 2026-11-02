@@ -24,7 +24,7 @@ Guided rather than a flat flashcard deck: "My progress" always names the next st
 
 ## Capabilities and Constraints
 
-459 verbs, 381 particle verbs, 155 irregular verbs; a separate level quiz (33 questions) estimates Beginner to B2 and can pre-fill progress; flashcard types A (EN→SV), B (SV→EN), C (preteritum), D (supinum); SM-2-style scheduling; Swedish text-to-speech via browser. Layout may change in a redesign, behaviour and content stay.
+459 lesson verbs with sentences, plus a 1,774-entry dictionary lexicon (forms and meaning only), 807 particle verbs, about 400 irregular verbs in total; a searchable dictionary (form-aware, diacritic-insensitive); a separate level quiz (33 questions) estimates Beginner to B2 and can pre-fill progress; flashcard types A (EN→SV), B (SV→EN), C (preteritum), D (supinum); SM-2-style scheduling; Swedish text-to-speech via browser. Layout may change in a redesign, behaviour and content stay.
 
 ## Evidence on Hand
 

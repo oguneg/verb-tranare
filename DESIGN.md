@@ -22,3 +22,6 @@ Exponential ease-out only. One staggered rise on route change, 3D card flip, a s
 
 ## Level quiz (separate surface)
 `#/level`. Standalone: intro, 33 single-answer questions with no feedback, results. Not in the nav; linked from Home. One question per screen, four stacked options plus a quiet "I don't know". Results: large indigo level name, skill bars (words indigo, past rose, perfect sky, particle lilac), and one optional action, "Set up my progress", that only marks levels below the estimate.
+
+## Dictionary
+`#/verbs`, always in the nav. Instant search across curated verbs, the lexicon and particle verbs (3,000+ entries): it matches the infinitiv, any conjugated form ("gick" finds gå, with a note saying which form it is), English words, and ignores diacritics ("ga" finds gå). Results are ranked and paged (50 at a time). Entries expand in place; curated verbs show all four coloured example sentences, lexicon entries show forms only. Press / to focus the search.
